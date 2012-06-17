@@ -1,7 +1,8 @@
--- example usage:
--- 1. run this program twice
--- 2. type "gets hello world" into one of the instances
--- 3. type "a" into the other
+-- test application for this under ../tests/distributed.lua
+-- usage ---------------------------------------------------------------------------------
+-- provides an interface for messaging across a network using the zmq (www.zeromq.org). --
+-- EXPORTS: local_(get|put|qry), remote_(get|put|qry), answer                           --
+------------------------------------------------------------------------------------------
 
 require "zmq"
 
@@ -13,36 +14,7 @@ stdserver = arg[3] or "localhost"
 
 -- external interface for operations -----------------------------------------------------
 
-function local_get(query)
-	local result = "response to "..tostring(query)
-	print("local get of ", serialize(query), " returns ", result)
-	return result
-end
-
-function local_put(fact)
-	print("local put of ", (serialize(fact)))
-	return fact
-end
-
-local function remote_action(name, server, param)
-	local socket = context:socket(zmq.REQ)
-	socket:connect("tcp://"..server..":"..srvport)
-	socket:send(command(name, param))
-	local reply = socket:recv()
-	print("  server repsonded:", reply)
-	socket:close()
-	return process(reply)
-end
-
-function remote_get(server, query)
-	return remote_action("get", server, query)
-end
-
-function remote_put(server, fact)
-	return remote_action("put", server, fact)
-end
-
-function process(code)
+local function process(code)
 	local fget = get
 	local fput = put
 	local fack = ack
@@ -60,6 +32,35 @@ function process(code)
 	put = fput
 	ack = fack
 	return result
+end
+
+function local_get(query)
+	local result = "response to "..tostring(query)
+	print("local get of ", serialize(query), " returns ", result)
+	return result
+end
+
+function local_put(fact)
+	print("local put of ", (serialize(fact)))
+	return fact
+end
+
+local function remote_action(name, server, param)
+	local socket = context:socket(zmq.REQ)
+	socket:connect("tcp://"..server..":"..srvport)
+	socket:send(command(name, param))
+	local reply = socket:recv()
+	print("  server responded:", reply)
+	socket:close()
+	return process(reply)
+end
+
+function remote_get(server, query)
+	return remote_action("get", server, query)
+end
+
+function remote_put(server, fact)
+	return remote_action("put", server, fact)
 end
 
 function answer()
@@ -106,9 +107,4 @@ function command(name, param)
 	return prologue.."return "..name.."("..object..")"
 end
 
-require "tools"
-print(helpShell())
-runShell()
-
-
-context:term()
+--context:term()  --omitted

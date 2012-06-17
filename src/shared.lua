@@ -1,8 +1,14 @@
+-- test application for this under ../tests/shared.lua
+-- usage ---------------------------------------------------------------------------------
+-- provides an interface for messaging within a LUA state using the global "queues".    --
+-- EXPORTS: local_(get|put|qry), remote_(get|put|qry), answer, stop                     --
+------------------------------------------------------------------------------------------
+
 queues = {
 	localhost = {},
 }
 pending = queues["localhost"]
-stdserver = arg[0] or "localhost" --the shell needs this
+stdserver = "localhost" --the shell needs this
 
 function local_get(query)
 	local result = "response to "..tostring(query)
@@ -84,24 +90,4 @@ function process(message)
 		end
 	}
 	return (commands[message.command])(message.content)
-end
-
-require "tools"
-print(helpShell())
-print([[
-  The prefixed number indicates the current coroutine. New ones are produced on the fly
-  when a coroutine blocks. Use the stop command to switch coroutines.]])
-calls = {}
-current = 1
-max = 1
-while true do
-	calls[current] = calls[current] or coroutine.create(function() runShell(tostring(current)) end)
-	if coroutine.status(calls[current]) == "dead" then
-		os.exit() --calls should never die anyway
-	end
-	if coroutine.status(calls[current]) == "suspended" then
-		_, unblock = coroutine.resume(calls[current])
-		if not unblock then max = max + 1 end
-	end
-	current = current < max and current+1 or 1
 end

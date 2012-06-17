@@ -1,4 +1,8 @@
--- user interface for testing purposes ---------------------------------------------------
+-- this script is used in the tests for distributed.lua as well as shared.lua
+-- usage ---------------------------------------------------------------------------------
+-- provides a simple, shell based user interface for testing purposes                   --
+-- EXPORTS: helpShell, runShell                                                         --
+------------------------------------------------------------------------------------------
 
 local id = function (x) return x end
 local ignore = function () return nil end
@@ -25,7 +29,7 @@ local commands = {
 		process    = remote_put,
 		help       = "Call remote_put with given lua expression."
 	},
-	test = {       --tests serialization of cyclic tables
+	test = {       --tests handling (especially serialization) of cyclic tables
 		preprocess = function ()
 			local param = {a = 40, b = 41, c = 42}
 			param.c = param
@@ -71,10 +75,12 @@ commands.help = {
 	help       = "Print a help for goven command."
 }
 
+-- print a simple help string for the user
 function helpShell()
 	return "  Type cmds for a list of available commands. Type help <command> for help."
 end
 
+-- run the shell (this call never returns)
 function runShell(prefix)
 	prefix = prefix or ""
 	while true do
