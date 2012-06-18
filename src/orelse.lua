@@ -1,6 +1,6 @@
 -- test application for this under ../tests/orelse.lua
 -- usage ---------------------------------------------------------------------------------
--- provides a non-determinstic choice operator                                          --
+-- provides a non-deterministic choice operator                                         --
 -- EXPORTS: proxy, orelse                                                               --
 ------------------------------------------------------------------------------------------
 

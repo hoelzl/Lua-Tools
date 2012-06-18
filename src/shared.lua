@@ -1,14 +1,36 @@
 -- test application for this under ../tests/shared.lua
 -- usage ---------------------------------------------------------------------------------
 -- provides an interface for messaging within a LUA state using the global "queues".    --
--- EXPORTS: local_(get|put|qry), remote_(get|put|qry), answer, stop                     --
+-- EXPORTS: init, term, local_(get|put|qry), remote_(get|put|qry), answer, stop         --
 ------------------------------------------------------------------------------------------
 
-queues = {
-	localhost = {},
-}
-pending = queues["localhost"]
-stdserver = "localhost" --the shell needs this
+local queues, pending
+
+function init(me, qs)
+	me = me or "localhost"
+	queues = qs or {}
+	queues[me] = queues[me] or {}
+	pending = queues[me]
+end
+
+function term()
+	--for compatibility reasons
+end
+
+local function process(message)
+	local commands = {
+		get = function (query)
+			return local_get(query)
+		end,
+		put = function (fact)
+			return local_put(fact)
+		end,
+		ack = function (fact)
+			return fact
+		end
+	}
+	return (commands[message.command])(message.content)
+end
 
 function local_get(query)
 	local result = "response to "..tostring(query)
@@ -75,19 +97,4 @@ end
 function answer()
 	local message = dequeue(pending)
 	enqueue(message.re, {command="ack", content=process(message), cause=message})
-end
-
-function process(message)
-	local commands = {
-		get = function (query)
-			return local_get(query)
-		end,
-		put = function (fact)
-			return local_put(fact)
-		end,
-		ack = function (fact)
-			return fact
-		end
-	}
-	return (commands[message.command])(message.content)
 end

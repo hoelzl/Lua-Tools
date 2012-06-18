@@ -81,7 +81,7 @@ function helpShell()
 end
 
 -- run the shell (this call never returns)
-function runShell(prefix)
+function runShell(stdserver, prefix)
 	prefix = prefix or ""
 	while true do
 		io.write(prefix, "> ")

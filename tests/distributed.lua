@@ -4,13 +4,11 @@
 -- 3. type "answer" into the other                                                      --
 ------------------------------------------------------------------------------------------
 
-
 package.path = "../src/?.lua;"..(package.path or "")
 require "distributed"
 require "tools"
 
+init(arg[1], arg[2])
 print(helpShell())
-runShell()
-
-
-context:term()
+runShell(arg[3] or "localhost")
+term()

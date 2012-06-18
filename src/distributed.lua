@@ -1,18 +1,23 @@
 -- test application for this under ../tests/distributed.lua
 -- usage ---------------------------------------------------------------------------------
 -- provides an interface for messaging across a network using the zmq (www.zeromq.org). --
--- EXPORTS: local_(get|put|qry), remote_(get|put|qry), answer                           --
+-- EXPORTS: init, term, local_(get|put|qry), remote_(get|put|qry), answer               --
 ------------------------------------------------------------------------------------------
 
 require "zmq"
+require "serialize"
 
-context = zmq.init(1)
-srvport = arg[1] or "5555"
-cltport = arg[2] or srvport
-stdserver = arg[3] or "localhost"
+local context, srvport, cltport
 
+function init(srv, clt)
+	srvport = srv or "5555"
+	cltport = clt or srvport
+	context = zmq.init(1)
+end
 
--- external interface for operations -----------------------------------------------------
+function term()
+	context:term()
+end
 
 local function process(code)
 	local fget = get
@@ -66,45 +71,10 @@ end
 function answer()
 	local socket = context:socket(zmq.REP)
 	socket:bind("tcp://*:"..cltport)
-	local request = socket:recv()
+	local request = socket:recv() --TODO: make this non-blocking
 	if request then
 	    socket:send(command("ack", process(request)))
 	end
     socket:close()
     return true
 end
-
-
--- serialization of protocol messages ----------------------------------------------------
-
-function serialize(expr, saved, prologue, index)
-	saved = saved or {}
-	prologue = prologue or ""
-	index = index or 1
-	if type(expr) == "number" then
-		return tostring(expr), saved, prologue, index
-	elseif type(expr) == "string" then
-		return string.format("%q", expr), saved, prologue, index
-	elseif type(expr) == "table" then
-		if not saved[expr] then
-			saved[expr] = "x"..tostring(index)
-			index = index + 1
-			prologue = prologue.."local "..saved[expr].."={}; "
-			for key,val in pairs(expr) do
-				kexpr, saved, prologue, index = serialize(key, saved, prologue, index)
-				vexpr, saved, prologue, index = serialize(val, saved, prologue, index)
-				prologue = prologue..string.format("%s[%s]=%s; ", saved[expr], kexpr, vexpr)
-			end
-		end
-		return saved[expr], saved, prologue, index
-	else
-		error("cannot serialize "..type(expr))
-	end
-end
-
-function command(name, param)
-	local object, library, prologue = serialize(param)
-	return prologue.."return "..name.."("..object..")"
-end
-
---context:term()  --omitted
