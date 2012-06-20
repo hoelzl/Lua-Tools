@@ -68,10 +68,16 @@ function remote_put(server, fact)
 	return remote_action("put", server, fact)
 end
 
-function answer()
+function answer(tries)
+	tries = tries or 100000 --magic number achieved through tests
 	local socket = context:socket(zmq.REP)
 	socket:bind("tcp://*:"..cltport)
-	local request = socket:recv() --TODO: make this non-blocking
+	local request = nil
+	local i = 0
+	while not request and i < tries do --circumvent random timeout of zmq
+		request = socket:recv(zmq.NOBLOCK)
+		i = i + 1
+	end
 	if request then
 	    socket:send(command("ack", process(request)))
 	end

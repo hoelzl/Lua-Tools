@@ -45,7 +45,7 @@ local commands = {
 	},
 	answer = {     --causes program to process pending messages
 		preprocess = id,
-		process    = answer,
+		process    = function() return answer() end,
 		help       = "Answer to pending message."
 	},
 	quit = {       --quit the program
