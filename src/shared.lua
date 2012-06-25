@@ -63,7 +63,7 @@ end
 local function dequeue(queue, constraints)
 	local resultn = 1
 	local count = #queue
-	while not tablematch(queue[resultn], constraints) do
+	while not tablematch(queue[resultn], constraints) and resultn < count do
 		resultn = resultn + 1
 	end
 	local result = queue[resultn]
@@ -96,5 +96,8 @@ end
 
 function answer()
 	local message = dequeue(pending)
-	enqueue(message.re, {command="ack", content=process(message), cause=message})
+	if message then
+		enqueue(message.re, {command="ack", content=process(message), cause=message})
+	end
+	return true
 end
