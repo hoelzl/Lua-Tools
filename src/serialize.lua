@@ -8,7 +8,7 @@ function serialize(expr, saved, prologue, index)
 	saved = saved or {}
 	prologue = prologue or ""
 	index = index or 1
-	if type(expr) == "number" then
+	if type(expr) == "number" or type(expr) == "boolean" then
 		return tostring(expr), saved, prologue, index
 	elseif type(expr) == "string" then
 		return string.format("%q", expr), saved, prologue, index
@@ -32,4 +32,17 @@ end
 function command(name, param)
 	local object, library, prologue = serialize(param)
 	return prologue.."return "..name.."("..object..")"
+end
+
+function data(param)
+	local object, library, prologue = serialize(param)
+	return prologue.."return ("..object..")"
+end
+
+function printser(...)
+	local printargs = {}
+	for i,param in ipairs(arg) do
+		printargs[i] = data(param)
+	end
+	return print(unpack(printargs))
 end
