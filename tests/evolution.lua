@@ -1,0 +1,34 @@
+package.path = "../src/?.lua;"..(package.path or "")
+require "evolution"
+
+
+a = 5
+--b = 7
+--c = 3
+
+x = newConstraintEnvironment(function(a, b)
+	if a.bigdifference > b.bigdifference then
+		return true
+	elseif a.bigdifference < b.bigdifference then
+		return false
+	else
+		return a.highc < b.highc
+	end
+end)
+x.constrain("bigdifference", function() return math.abs(a-b) end)
+x.constrain("highc", function() return c end)
+x.register("b", domains.natural(2, 150))
+x.register("c", domains.float(1, 19))
+
+--test1, test1result = x.test({{b=8}, {b=4}, {b=9}})
+--print(test1, command("id", test1result))
+
+e = newPopulation(x)
+e.seed(10)
+
+test2result = e.best()
+printser(test2result.traits)
+test3result = e.age(7).best()
+printser(test3result.traits)
+
+

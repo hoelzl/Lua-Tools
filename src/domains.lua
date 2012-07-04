@@ -1,0 +1,56 @@
+RNG = RNG or math.random
+
+domains = {
+
+	natural = function (min, max, stepsize)
+		min = min or 0
+		max = max or 1
+		stepsize = stepsize or 1
+		local this = {}
+		function this.start()
+			return RNG(min, max)
+		end
+		function this.step(origin)
+			if origin == min then return min + stepsize end
+			if origin == max then return max - stepsize end
+			if RNG(0, 1) == 1 then
+				return origin + stepsize
+			else
+				return origin - stepsize
+			end
+		end
+		return this
+	end,
+	
+	float = function (min, max, deviation)
+		min = min or 0
+		max = max or 1
+		deviation = deviation or max - min
+		local scale = max - min
+		local this = {}
+		function this.start()
+			return scale*RNG()
+		end
+		function this.step(origin)
+			local stepup = scale*deviation*RNG()
+			local stepdown = scale*deviation*RNG()
+			local result = origin + stepup - stepdown
+			result = result > max and max or result
+			result = result < min and min or result
+			return result
+		end
+		return this
+	end,
+	
+	just = function (value)
+		local this = {}
+		function this.start()
+			return value
+		end
+		function this.step(origin)
+			return origin
+		end
+		return this
+	end
+	
+}
