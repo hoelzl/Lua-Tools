@@ -19,6 +19,9 @@ domains = {
 				return origin - stepsize
 			end
 		end
+		function this.combine(a, b)
+			return math.floor(math.abs(a-b+0.5)/2)
+		end
 		return this
 	end,
 	
@@ -39,6 +42,9 @@ domains = {
 			result = result < min and min or result
 			return result
 		end
+		function this.combine(a, b)
+			return math.abs(a-b)/2
+		end
 		return this
 	end,
 	
@@ -49,6 +55,9 @@ domains = {
 		end
 		function this.step(origin)
 			return origin
+		end
+		function this.combine(a, b)
+			return value
 		end
 		return this
 	end

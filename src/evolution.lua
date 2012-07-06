@@ -20,15 +20,17 @@ end
 function newIndividual(domains, traits)
 	local this = {
 		domains = domains or {},
-		traits = traits or {},
-		mutationrate = 0.1
+		traits = traits or {}
 	}
 	for name,domain in pairs(this.domains) do
 		this.traits[name] = this.traits[name] or domain.start()
 	end
+	local function rate(name)
+		return this.traits["_"..name] or this.traits["__"] or 0.1 
+	end
 	function this.mutate()
 		for name,trait in pairs(this.traits) do
-			if RNG() < this.mutationrate then
+			if RNG() < rate(name) then
 				this.traits[name] = this.domains[name].step(trait)
 			end
 		end
@@ -37,14 +39,21 @@ function newIndividual(domains, traits)
 	function this.clone()
 		return newIndividual(domains, deepcopy(this.traits))
 	end
+	function this.recombine(other)
+		local offspringtraits = {}
+		for name,domain in pairs(this.domains) do
+			offspringtraits[name] = domain.combine(this.traits[name], other.traits[name])
+		end
+		return newIndividual(this.domains, offspringtraits)
+	end
 	return this
 end
 
 function newPopulation(environment, domains)
+ 	local elite
 	local this = {
 		individuals = {},
-		environment = environment,
-		elite = nil
+		environment = environment
  	}
  	domains = domains or {}
  	for var,default in pairs(environment.vars) do
@@ -54,28 +63,32 @@ function newPopulation(environment, domains)
 		if candidate == nil then
 			return false
 		end
-		if this.elite == nil then
-			this.elite = candidate.clone()
+		if elite == nil then
+			elite = candidate.clone()
 			return true
 		end
-		if this.compare(this.elite, candidate) then
-			this.elite = candidate.clone()
+		if this.compare(elite, candidate) then
+			elite = candidate.clone()
 			return true
 		end
 		return false
 	end
+ 	local function integrate(individual)
+ 		this.individuals[individual] = this.environment.try(individual.traits)
+ 		attemptusurpation(individual)
+ 	end
 	function this.seed(n)
+		if n <= 0 then return nil end
 		n = n or 1
 		local adam = newIndividual(domains)
-		this.individuals[adam] = this.environment.try(adam.traits)
-		attemptusurpation(adam)
+		integrate(adam)
 		if n == 1 then
 			return adam
 		end
 		return adam, this.seed(n-1)
 	end
 	function this.best()
-		return this.elite
+		return elite
 	end
 	function this.compare(a, b)
 		local arank = this.individuals[a] or this.environment.try(a.traits)
@@ -83,6 +96,7 @@ function newPopulation(environment, domains)
 		return this.environment.order(arank, brank)
 	end
 	function this.age(n)
+		if n <= 0 then return this end
 		n = n or 1
 		for individual,_ in pairs(this.individuals) do
 			individual.mutate()
@@ -97,7 +111,7 @@ function newPopulation(environment, domains)
 	function this.survive()
 		local individuals = {}
 		for individual,ranks in pairs(this.individuals) do
-			if not (individual == this.elite) then --elite always survives
+			if not (individual == elite) then --elite always survives
 				individuals[#individuals+1] = individual
 			end
 		end
@@ -106,7 +120,12 @@ function newPopulation(environment, domains)
 			local mate = individuals[RNG(1, #individuals)]
 			if this.compare(individual, mate) then
 				this.individuals[individual] = nil
-				deaths = deaths + 1
+				if 0.5 < RNG() then
+					local child = individual.recombine(mate)
+					integrate(child)
+				else
+					deaths = deaths + 1
+				end
 			end
 		end
 		this.seed(deaths)
