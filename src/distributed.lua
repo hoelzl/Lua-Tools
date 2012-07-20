@@ -41,19 +41,19 @@ end
 
 function local_get(query)
 	local result = "response to "..tostring(query)
-	print("local get of ", serialize(query), " returns ", result)
+	print("local get of ", serialize.data(query), " returns ", result)
 	return result
 end
 
 function local_put(fact)
-	print("local put of ", (serialize(fact)))
+	print("local put of ", (serialize.data(fact)))
 	return fact
 end
 
 local function remote_action(name, server, param)
 	local socket = context:socket(zmq.REQ)
 	socket:connect("tcp://"..server..":"..srvport)
-	socket:send(command(name, param))
+	socket:send(serialize.command(name, param))
 	local reply = socket:recv()
 	print("  server responded:", reply)
 	socket:close()
@@ -79,7 +79,7 @@ function answer(tries)
 		i = i + 1
 	end
 	if request then
-	    socket:send(command("ack", process(request)))
+	    socket:send(serialize.command("ack", process(request)))
 	end
     socket:close()
     return true

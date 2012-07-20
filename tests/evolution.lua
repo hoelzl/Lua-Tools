@@ -1,5 +1,8 @@
 package.path = "../src/?.lua;"..(package.path or "")
 require "evolution"
+require "domains"
+require "constraints"
+require "serialize"
 
 
 a = 5
@@ -29,9 +32,9 @@ e = newPopulation(x)
 e.seed(10)
 
 test2result = e.best()
-printser(test2result.traits)
+serialize.print(test2result.traits)
 test3result = e.age(21).best()
-printser(test3result.traits)
+serialize.print(test3result.traits)
 test4result = e.age(21).best()
-printser(test4result.traits)
+serialize.print(test4result.traits)
 

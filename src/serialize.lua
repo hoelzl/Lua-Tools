@@ -3,8 +3,16 @@
 -- provides a simple serializer                                                         --
 -- EXPORTS: serialize, command                                                          --
 ------------------------------------------------------------------------------------------
+local type = type
+local string = string
+local tostring = tostring
+local pairs = pairs
+local ipairs = ipairs
+local stdprint = print
+local unpack = unpack
+module(...)
 
-function serialize(expr, saved, prologue, index)
+local function serialize(expr, saved, prologue, index)
 	saved = saved or {}
 	prologue = prologue or ""
 	index = index or 1
@@ -39,10 +47,10 @@ function data(param)
 	return prologue.."return ("..object..")"
 end
 
-function printser(...)
+function print(...)
 	local printargs = {}
 	for i,param in ipairs(arg) do
 		printargs[i] = data(param)
 	end
-	return print(unpack(printargs))
+	return stdprint(unpack(printargs))
 end

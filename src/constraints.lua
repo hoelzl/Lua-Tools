@@ -1,4 +1,3 @@
-require "serialize"
 
 function newConstraintEnvironment(order, constraints)
 	local function alwaysfirst(a, b)

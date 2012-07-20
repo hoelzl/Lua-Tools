@@ -1,6 +1,3 @@
-require "constraints"
-require "domains"
-
 math.randomseed(os.time() * os.time() * math.random() - os.time()) -- this sucks
 math.random()
 RNG = math.random

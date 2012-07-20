@@ -54,7 +54,7 @@ domains = {
 			return value
 		end
 		function this.step(origin)
-			return origin
+			return value
 		end
 		function this.combine(a, b)
 			return value
