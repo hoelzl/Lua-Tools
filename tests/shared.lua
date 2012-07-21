@@ -10,7 +10,7 @@ require "shared"
 require "shell"
 
 init("localhost")
-print(helpShell())
+print(shell.help())
 print([[
   The prefixed number indicates the current coroutine. New ones are produced on the fly
   when a coroutine blocks. Use the stop command to switch coroutines.]])
@@ -18,7 +18,7 @@ local calls = {}
 local current = 1
 local max = 1
 while true do
-	calls[current] = calls[current] or coroutine.create(function() runShell("localhost", tostring(current)) end)
+	calls[current] = calls[current] or coroutine.create(function() shell.run("localhost", tostring(current)) end)
 	if coroutine.status(calls[current]) == "dead" then
 		print("An unexpected error occured.")
 		os.exit() --calls should never die anyway

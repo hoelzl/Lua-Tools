@@ -1,8 +1,10 @@
 -- this script is used in the tests for distributed.lua as well as shared.lua
 -- usage ---------------------------------------------------------------------------------
 -- provides a simple, shell based user interface for testing purposes                   --
--- EXPORTS: helpShell, runShell                                                         --
+-- EXPORTS: help, run                                                                   --
 ------------------------------------------------------------------------------------------
+
+module(..., package.seeall)
 
 local id = function (x) return x end
 local ignore = function () return nil end
@@ -76,12 +78,12 @@ commands.help = {
 }
 
 -- print a simple help string for the user
-function helpShell()
+function help()
 	return "  Type cmds for a list of available commands. Type help <command> for help."
 end
 
 -- run the shell (this call never returns)
-function runShell(stdserver, prefix)
+function run(stdserver, prefix)
 	prefix = prefix or ""
 	while true do
 		io.write(prefix, "> ")

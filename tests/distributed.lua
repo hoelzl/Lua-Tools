@@ -9,6 +9,6 @@ require "distributed"
 require "shell"
 
 init(arg[1], arg[2])
-print(helpShell())
-runShell(arg[3] or "localhost")
+print(shell.help())
+shell.run(arg[3] or "localhost")
 term()
