@@ -7,7 +7,7 @@
 
 package.path = "../src/?.lua;"..(package.path or "")
 require "shared"
-require "tools"
+require "shell"
 
 init("localhost")
 print(helpShell())
