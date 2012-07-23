@@ -21,10 +21,14 @@ end
 
 local function process(code)
 	local fget = get
+	local fqry = qry
 	local fput = put
 	local fack = ack
 	get = function (query)
 		return local_get(query)
+	end
+	qry = function (query)
+		return local_qry(query)
 	end
 	put = function (fact)
 		return local_put(fact)
@@ -34,6 +38,7 @@ local function process(code)
 	end
 	local result = loadstring(code)()
 	get = fget
+	qry = fqry
 	put = fput
 	ack = fack
 	return result
@@ -42,6 +47,12 @@ end
 function local_get(query)
 	local result = "response to "..tostring(query)
 	print("local get of ", serialize.data(query), " returns ", result)
+	return result
+end
+
+function local_qry(query)
+	local result = "response to "..tostring(query)
+	print("local qry of ", serialize.data(query), " returns ", result)
 	return result
 end
 
@@ -62,6 +73,10 @@ end
 
 function remote_get(server, query)
 	return remote_action("get", server, query)
+end
+
+function remote_qry(server, query)
+	return remote_action("qry", server, query)
 end
 
 function remote_put(server, fact)

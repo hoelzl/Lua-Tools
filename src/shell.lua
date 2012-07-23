@@ -21,6 +21,16 @@ local commands = {
 		process    = remote_get,
 		help       = "Call remote_get with given lua expression."
 	},
+	qrys = {       --shortcut for qry of a string
+		preprocess = id,
+		process    = remote_qry,
+		help       = "Call remote_qry with given string."
+	},
+	qry = {
+		preprocess = interpret,
+		process    = remote_qry,
+		help       = "Call remote_qry with given lua expression."
+	},
 	puts = {       --shortcut for put of a string
 		preprocess = id,
 		process    = remote_put,

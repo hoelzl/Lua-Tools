@@ -22,6 +22,9 @@ local function process(message)
 		get = function (query)
 			return local_get(query)
 		end,
+		qry = function (query)
+			return local_qry(query)
+		end,
 		put = function (fact)
 			return local_put(fact)
 		end,
@@ -35,6 +38,12 @@ end
 function local_get(query)
 	local result = "response to "..tostring(query)
 	print("local get of ", query, " returns ", result)
+	return result
+end
+
+function local_qry(query)
+	local result = "response to "..tostring(query)
+	print("local qry of ", query, " returns ", result)
 	return result
 end
 
@@ -85,6 +94,10 @@ function remote_get(server, query)
 	return remote_action("get", server, query)
 end
 
+function remote_qry(server, query)
+	return remote_action("qry", server, query)
+end
+
 function remote_put(server, fact)
 	return remote_action("put", server, fact)
 end
@@ -97,7 +110,12 @@ end
 function answer()
 	local message = dequeue(pending)
 	if message then
-		enqueue(message.re, {command="ack", content=process(message), cause=message})
+		if message.command == "ack" then
+			answer()
+			enqueue(pending, message) --put ack back
+		else
+			enqueue(message.re, {command="ack", content=process(message), cause=message})
+		end
 	end
 	return true
 end
