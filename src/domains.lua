@@ -1,3 +1,9 @@
+-- test application for this under ../tests/evolution.lua
+-- usage ---------------------------------------------------------------------------------
+-- provides domains for evolution to work with                                          --
+-- EXPORTS: natural, float, just                                                        --
+------------------------------------------------------------------------------------------
+
 local math = math
 local RNG = RNG or math.random
 module(...)

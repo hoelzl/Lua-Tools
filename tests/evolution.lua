@@ -23,7 +23,7 @@ x.constrain("highc", function() return c end)
 x.register("b", domains.natural(2, 150))
 x.register("c", domains.float(1, 19))
 --let evolution determine the general mutation rate:
---x.register("__", domains.float())
+x.register("__", domains.float())
 
 --test1, test1result = x.test({{b=8}, {b=4}, {b=9}})
 --print(test1, command("id", test1result))

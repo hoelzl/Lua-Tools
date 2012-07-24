@@ -1,6 +1,6 @@
 math.randomseed(os.time() * os.time() * math.random() - os.time()) -- this sucks
 math.random()
-RNG = math.random
+local RNG = RNG or math.random
 
 local function deepcopy(thing)
 	if type(thing) == "table" then
