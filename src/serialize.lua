@@ -6,6 +6,7 @@
 local type = type
 local string = string
 local tostring = tostring
+local error = error
 local pairs = pairs
 local ipairs = ipairs
 local stdprint = print
