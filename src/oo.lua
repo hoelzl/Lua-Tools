@@ -1,5 +1,11 @@
-module(..., package.seeall)
+local pairs = pairs
+local type = type
+local setmetatable = setmetatable
+local unpack = unpack
+local error = error
+module(...)
 
+-- basic table functions -------------------------------------------------------
 local function update(table, update)
     for key,val in pairs(update) do
         table[key] = val
@@ -31,8 +37,16 @@ local function shallowcopy(thing)
     end
 end
 
+-- tag management (~DSL for the object notation) -------------------------------
+
 local publictag = {}
-function public(e) return {tag=publictag, entity=e} end
+
+function public(method)
+    if not type(method) == "function" then
+        error("only functions can be public")
+    end
+    return {tag=publictag, entity=method}
+end
 
 local function tag(state, interface)
     local template = {}
@@ -42,6 +56,7 @@ local function tag(state, interface)
     return template
 end
 
+-- tab objects (based on weak and meta tables) ---------------------------------
 
 local objects = {}
 setmetatable(objects, {__mode = "k"})
@@ -64,8 +79,9 @@ end
 local class = {
     __index = function (table, key)
         if retrieve(table, "interface")[key] then
+            local state = retrieve(table, "state")
             return function (_, ...)
-                return retrieve(table, "state")[key](retrieve(table, "state"), unpack(arg))
+                return state[key](state, unpack(arg))
             end
         else
             if retrieve(table, "state")[key] then
@@ -81,9 +97,9 @@ local class = {
 }
 
 local function tabobject(state)
+    state = state or {}
     local pointer = {}
     setmetatable(pointer, class)
-    state = state or {}
     register(pointer, state)
     for name, value in pairs(state) do
         if type(value) == "table" and value.tag == publictag then
@@ -97,6 +113,8 @@ local function tabobject(state)
     objects[pointer].interface.intend = true
     return pointer
 end
+
+-- lol objects (based on a let over lambda mechanism) --------------------------
 
 local function lolobject(state)
     state = state or {}
@@ -115,6 +133,8 @@ local function lolobject(state)
     interface.intend = state.intend
     return interface
 end
+
+-- general module management ---------------------------------------------------
 
 local origin = {
     new = public (function (self)
