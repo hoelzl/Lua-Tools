@@ -1,6 +1,14 @@
+-- test application for this under ../tests/oo.lua
+-- usage ---------------------------------------------------------------------------------
+-- provides versatile framework for OOP with a uniform interface across different       --
+-- implementations of objects in LUA.                                                   --
+-- EXPORTS: object, public, dynamic, default                                            --
+------------------------------------------------------------------------------------------
+
 local pairs = pairs
 local type = type
 local setmetatable = setmetatable
+local getmetatable = getmetatable
 local unpack = unpack
 local error = error
 module(...)
@@ -15,10 +23,17 @@ end
 
 local function deepcopy(thing)
 	if type(thing) == "table" then
+        local metatable = getmetatable(thing)
+        if metatable and metatable.copy then
+            return metatable.copy(thing)
+        end
 		local copy = {}
 		for key,val in pairs(thing) do
 			copy[deepcopy(key)] = deepcopy(val)
 		end
+        if metatable then
+            setmetatable(copy, metatable)
+        end
 		return copy
 	else
 		return thing
@@ -40,6 +55,7 @@ end
 -- tag management (~DSL for the object notation) -------------------------------
 
 local publictag = {}
+local dynamictag = {}
 
 function public(method)
     if not type(method) == "function" then
@@ -48,43 +64,62 @@ function public(method)
     return {tag=publictag, entity=method}
 end
 
-local function tag(state, interface)
+function dynamic(property)
+    if not type(property) == "table" then
+        error("only referential types (i.e. tables) can be marked as dynamic")
+    end
+    return {tag=dynamictag, entity=property}
+end
+
+local function tag(state, interface, dynamics)
     local template = {}
     for name,value in pairs(state) do
         template[name] = interface[name] and public(state[name]) or state[name]
+        template[name] = dynamics[name] and dynamic(state[name]) or template[name]
     end
     return template
 end
 
--- tab objects (based on weak and meta tables) ---------------------------------
+local function template(state)
+    return tag(state, state._interface, state._dynamics)
+end
+
+-- tab object management -------------------------------------------------------
 
 local objects = {}
 setmetatable(objects, {__mode = "k"})
 
-local function register(pointer, state, interface)
-    objects[pointer] = {state=state or {}, interface=interface or {}}
+local function register(pointer, state)
+    objects[pointer] = state
 end
 
-local function retrieve(pointer, key)
-    if key == nil then
-        return objects[pointer] or {}
-    end
-    if objects[pointer] then
-        return objects[pointer][key] or {}
-    end
-    return {}
+local function retrieve(pointer)
+    return objects[pointer]
 end
 
+-- object type definitions -----------------------------------------------------
 
-local class = {
-    __index = function (table, key)
-        if retrieve(table, "interface")[key] then
-            local state = retrieve(table, "state")
+local lolclass = {
+    __index = function (interface, name)
+        error("method "..name.." not public or non-existing")
+    end,
+    __newindex == function ()
+        error("no write access on object")
+    end,
+    copy = function (original)
+        return original:clone()
+    end
+}
+
+local tabclass = {
+    __index = function (pointer, key)
+        local state = retrieve(pointer, "state")
+        if state._interface[key] then
             return function (_, ...)
                 return state[key](state, unpack(arg))
             end
         else
-            if retrieve(table, "state")[key] then
+            if state[key] then
                 error("method "..key.." not public")
             else
                 error("method "..key.." does not exist")
@@ -93,50 +128,69 @@ local class = {
     end,
     __newindex = function ()
         error("no write access on object")
+    end,
+    copy = function (original)
+        return original:clone()
     end
 }
 
-local function tabobject(state)
-    state = state or {}
-    local pointer = {}
-    setmetatable(pointer, class)
-    register(pointer, state)
-    for name, value in pairs(state) do
-        if type(value) == "table" and value.tag == publictag then
-            state[name] = value.entity
-            objects[pointer].interface[name] = true
-        end
-    end
-    state.intend = function (_, intension)
-        return tabobject(update(tag(state, objects[pointer].interface), intension))
-    end
-    objects[pointer].interface.intend = true
-    return pointer
-end
-
--- lol objects (based on a let over lambda mechanism) --------------------------
-
-local function lolobject(state)
-    state = state or {}
-    local interface = {}
-    for name, value in pairs(state) do
-        if type(value) == "table" and value.tag == publictag then
-            state[name] = value.entity
-            interface[name] = function(_, ...)
+local types = {
+    lol = {
+        name = "lol",
+        publish = function (state, name)
+            return function(_, ...)
                 return state[name](state, unpack(arg))
             end
+        end,
+        represent = function (state)
+            local interface = shallowcopy(state._interface)
+            setmetatable(interface, lolclass)
+            return interface
+        end
+    },
+    tab = {
+        name = "tab",
+        publish = function (state, name)
+            return true
+        end,
+        represent = function (state)
+            local pointer = {}
+            setmetatable(pointer, tabclass)
+            register(pointer, state, state._interface)
+            return pointer
+        end
+    }
+}
+
+-- abstract object construction ------------------------------------------------
+
+local function construct(otype, template)
+    if type(otype) == "string" then
+        otype = types[otype] or error("object type "..otype.." does not exist")
+    end
+    local state = {_spawntype = otype.name}
+    local interface = {}
+    local dynamics = {}
+    for name, value in pairs(template) do
+        if type(value) == "table" and value.tag == publictag then
+            state[name] = value.entity
+            interface[name] = otype.publish(state, name)
+        elseif type(value) == "table" and value.tag == dynamictag then 
+            state[name] = deepcopy(value.entity)
+            dynamics[name] = true
+        else
+            state[name] = value
         end
     end
-    state.intend = function (_, intension)
-        return lolobject(update(tag(state, interface), intension))
-    end
-    interface.intend = state.intend
-    return interface
+    state._interface = interface
+    state._dynamics = dynamics
+    return otype.represent(state)
 end
 
--- general module management ---------------------------------------------------
-
 local origin = {
+    intend = public (function (self, intension)
+        return construct(self._spawntype, update(template(self), intension))
+    end),
     new = public (function (self)
         return self:intend{}
     end),
@@ -145,14 +199,10 @@ local origin = {
     end)
 }
 
-object = lolobject(shallowcopy(origin))
+-- general module management ---------------------------------------------------
 
 function default(type)
-    if type == "lol" then
-        object = lolobject(shallowcopy(origin))
-    elseif type == "tab" then
-        object = tabobject(shallowcopy(origin))
-    else
-        error("unrecognized object type")
-    end
+    object = construct(type, shallowcopy(origin))
 end
+
+default("lol")

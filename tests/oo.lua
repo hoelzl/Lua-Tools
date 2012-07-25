@@ -6,6 +6,7 @@ for _,type in pairs{"tab", "lol"} do
     oo.default(type)
     
     testo = oo.object:intend{
+        pos = oo.dynamic{x=1, y=1},
         a=1,
         b=5,
         geta = oo.public (function(self)
@@ -16,9 +17,21 @@ for _,type in pairs{"tab", "lol"} do
         end),
         hit = oo.public (function(self, amount)
             self.a = self.a + amount
-        end)}
+        end),
+        getx = oo.public (function(self)
+            return self.pos.x
+        end),
+        gety = oo.public (function (self)
+            return self.pos.y
+        end),
+        move = oo.public (function(self)
+            self.pos.x = self.pos.x + 1
+            self.pos.y = self.pos.y + 1
+        end)
+    }
     testp = testo:intend{
         c = 7,
+        --t = testo,
         getc = oo.public (function (self)
             return self.c
         end),
@@ -47,5 +60,14 @@ for _,type in pairs{"tab", "lol"} do
 
     print(testq:geta())
 
+    print(testo:getx(), testo:gety())
+    print(testp:getx(), testp:gety())
+    testo:move()
+    print(testo:getx(), testo:gety())
+    print(testp:getx(), testp:gety())
+    testp:move()
+    print(testo:getx(), testo:gety())
+    print(testp:getx(), testp:gety())
+    
     print()
 end
