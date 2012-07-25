@@ -1,7 +1,7 @@
 -- test application for this under ../tests/distributed.lua
 -- usage ---------------------------------------------------------------------------------
 -- provides an interface for messaging across a network using the zmq (www.zeromq.org). --
--- EXPORTS: init, term, local_(get|put|qry), remote_(get|put|qry), answer               --
+-- DEFINES: init, term, local_(get|put|qry), remote_(get|put|qry), answer               --
 ------------------------------------------------------------------------------------------
 
 require "zmq"

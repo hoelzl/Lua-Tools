@@ -1,7 +1,7 @@
 -- test application for this under ../tests/shared.lua
 -- usage ---------------------------------------------------------------------------------
 -- provides an interface for messaging within a LUA state using the global "queues".    --
--- EXPORTS: init, term, local_(get|put|qry), remote_(get|put|qry), answer, stop         --
+-- DEFINES: init, term, local_(get|put|qry), remote_(get|put|qry), answer, stop         --
 ------------------------------------------------------------------------------------------
 
 local queues, pending
