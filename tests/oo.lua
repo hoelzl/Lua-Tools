@@ -31,7 +31,7 @@ for _,type in pairs{"tab", "lol"} do
     }
     testp = testo:intend{
         c = 7,
-        --t = testo,
+        t = oo.dynamic(testo),
         getc = oo.public (function (self)
             return self.c
         end),
@@ -40,6 +40,9 @@ for _,type in pairs{"tab", "lol"} do
         end),
         hit = oo.public (function (self, amount)
             self.c = self.c + amount
+        end),
+        gett = oo.public (function (self)
+            return self.t
         end),
         new = oo.public (function (self, aval)
             return self:intend{
@@ -68,6 +71,8 @@ for _,type in pairs{"tab", "lol"} do
     testp:move()
     print(testo:getx(), testo:gety())
     print(testp:getx(), testp:gety())
+    
+    print(testq:gett():geta(), testo:geta())
     
     print()
 end

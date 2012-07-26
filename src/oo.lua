@@ -13,7 +13,7 @@ local unpack = unpack
 local error = error
 module(...)
 
--- basic table functions -------------------------------------------------------
+-- basic table functions -----------------------------------------------------------------
 local function update(table, update)
     for key,val in pairs(update) do
         table[key] = val
@@ -24,8 +24,8 @@ end
 local function deepcopy(thing)
 	if type(thing) == "table" then
         local metatable = getmetatable(thing)
-        if metatable and metatable.copy then
-            return metatable.copy(thing)
+        if metatable and metatable.__copy then
+            return metatable.__copy(thing)
         end
 		local copy = {}
 		for key,val in pairs(thing) do
@@ -52,7 +52,7 @@ local function shallowcopy(thing)
     end
 end
 
--- tag management (~DSL for the object notation) -------------------------------
+-- tag management (~DSL for the object notation) -----------------------------------------
 
 local publictag = {}
 local dynamictag = {}
@@ -84,7 +84,7 @@ local function template(state)
     return tag(state, state._interface, state._dynamics)
 end
 
--- tab object management -------------------------------------------------------
+-- tab object management -----------------------------------------------------------------
 
 local objects = {}
 setmetatable(objects, {__mode = "k"})
@@ -97,16 +97,16 @@ local function retrieve(pointer)
     return objects[pointer]
 end
 
--- object type definitions -----------------------------------------------------
+-- object type definitions ---------------------------------------------------------------
 
 local lolclass = {
     __index = function (interface, name)
-        error("method "..name.." not public or non-existing")
+        return nil
     end,
     __newindex == function ()
         error("no write access on object")
     end,
-    copy = function (original)
+    __copy = function (original)
         return original:clone()
     end
 }
@@ -119,17 +119,13 @@ local tabclass = {
                 return state[key](state, unpack(arg))
             end
         else
-            if state[key] then
-                error("method "..key.." not public")
-            else
-                error("method "..key.." does not exist")
-            end
+            return nil
         end
     end,
     __newindex = function ()
         error("no write access on object")
     end,
-    copy = function (original)
+    __copy = function (original)
         return original:clone()
     end
 }
@@ -162,12 +158,10 @@ local types = {
     }
 }
 
--- abstract object construction ------------------------------------------------
+-- abstract object construction ----------------------------------------------------------
 
-local function construct(otype, template)
-    if type(otype) == "string" then
-        otype = types[otype] or error("object type "..otype.." does not exist")
-    end
+local function construct(typename, template)
+    otype = types[typename] or error("object type "..tostring(typename).." doesn't exist")
     local state = {_spawntype = otype.name}
     local interface = {}
     local dynamics = {}
@@ -199,7 +193,7 @@ local origin = {
     end)
 }
 
--- general module management ---------------------------------------------------
+-- general module management -------------------------------------------------------------
 
 function default(type)
     object = construct(type, shallowcopy(origin))
