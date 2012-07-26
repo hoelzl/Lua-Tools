@@ -99,6 +99,17 @@ end
 
 -- object type definitions ---------------------------------------------------------------
 
+local function method(state, name)
+    return function(callee, ...)
+        local result = state[name](state, unpack(arg))
+        if result == state then --prevent state from leaking out
+            return callee
+        else
+            return result
+        end
+    end
+end
+
 local lolclass = {
     __index = function (interface, name)
         return nil
@@ -115,9 +126,7 @@ local tabclass = {
     __index = function (pointer, key)
         local state = retrieve(pointer, "state")
         if state._interface[key] then
-            return function (_, ...)
-                return state[key](state, unpack(arg))
-            end
+            return method(state, key)
         else
             return nil
         end
@@ -133,11 +142,7 @@ local tabclass = {
 local types = {
     lol = {
         name = "lol",
-        publish = function (state, name)
-            return function(_, ...)
-                return state[name](state, unpack(arg))
-            end
-        end,
+        publish = method,
         represent = function (state)
             local interface = shallowcopy(state._interface)
             setmetatable(interface, lolclass)
@@ -154,6 +159,15 @@ local types = {
             setmetatable(pointer, tabclass)
             register(pointer, state, state._interface)
             return pointer
+        end
+    },
+    noo = {
+        name= "noo",
+        publish = function (state, name)
+            return true
+        end,
+        represent = function (state)
+            return state
         end
     }
 }

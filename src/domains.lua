@@ -4,8 +4,8 @@
 -- EXPORTS: natural, float, just                                                        --
 ------------------------------------------------------------------------------------------
 
-local math = math
 local RNG = RNG or math.random
+local math = math
 module(...)
 
 function natural(min, max, stepsize)
