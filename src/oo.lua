@@ -12,46 +12,8 @@ local setmetatable = setmetatable
 local getmetatable = getmetatable
 local unpack = unpack
 local error = error
+local tt = require "typetools"
 module(...)
-
--- basic table functions -----------------------------------------------------------------
-local function update(table, update)
-    for key,val in pairs(update) do
-        table[key] = val
-    end
-    return table
-end
-
-local function deepcopy(thing)
-	if type(thing) == "table" then
-        local metatable = getmetatable(thing)
-        if metatable and metatable.__copy then
-            return metatable.__copy(thing)
-        end
-		local copy = {}
-		for key,val in pairs(thing) do
-			copy[deepcopy(key)] = deepcopy(val)
-		end
-        if metatable then
-            setmetatable(copy, metatable)
-        end
-		return copy
-	else
-		return thing
-	end
-end
-
-local function shallowcopy(thing)
-    if type(thing) == "table" then
-        local copy = {}
-        for key,val in pairs(thing) do
-            copy[key] = val
-        end
-        return copy
-    else
-        return thing
-    end
-end
 
 -- tag management (~DSL for the object notation) -----------------------------------------
 
@@ -111,17 +73,20 @@ local function method(state, name)
     end
 end
 
+local function writeerror()
+    error("no write access on object")
+end
+
+local function clone(original)
+    return original:clone()
+end
+
 local lolclass = {
-    __index = function (interface, name)
-        return nil
-    end,
-    __newindex == function ()
-        error("no write access on object")
-    end,
-    __copy = function (original)
-        return original:clone()
-    end
+    __index = function () return nil end,
+    __newindex = writeerror,
+    __copy = clone
 }
+
 
 local tabclass = {
     __index = function (pointer, key)
@@ -132,12 +97,14 @@ local tabclass = {
             return nil
         end
     end,
-    __newindex = function ()
-        error("no write access on object")
-    end,
-    __copy = function (original)
-        return original:clone()
-    end
+    __newindex = writeerror,
+    __copy = clone
+}
+
+local nooclass = {
+    __index = function () return nil end,
+    __newindex = writeerror,
+    __copy = clone
 }
 
 local types = {
@@ -145,7 +112,7 @@ local types = {
         name = "lol",
         publish = method,
         represent = function (state)
-            local interface = shallowcopy(state._interface)
+            local interface = tt.shallowcopy(state._interface)
             setmetatable(interface, lolclass)
             return interface
         end
@@ -168,6 +135,7 @@ local types = {
             return nil
         end,
         represent = function (state)
+            setmetatable(state, nooclass)
             return state
         end
     }
@@ -185,7 +153,7 @@ local function construct(typename, template)
             state[name] = value.entity
             interface[name] = otype.publish(state, name)
         elseif type(value) == "table" and value.tag == dynamictag then 
-            state[name] = deepcopy(value.entity)
+            state[name] = tt.deepcopy(value.entity)
             dynamics[name] = true
         else
             state[name] = value
@@ -198,7 +166,7 @@ end
 
 local origin = {
     intend = public (function (self, intension)
-        return construct(self._spawntype, update(template(self), intension))
+        return construct(self._spawntype, tt.update(template(self), intension))
     end),
     new = public (function (self)
         return self:intend{}
@@ -222,7 +190,7 @@ end
 -- general module management -------------------------------------------------------------
 
 function default(type)
-    object = construct(type, shallowcopy(origin))
+    object = construct(type, tt.shallowcopy(origin))
 end
 
 default("lol")

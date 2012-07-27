@@ -2,7 +2,7 @@ package.path = "../src/?.lua;"..(package.path or "")
 require "oo"
 
 
-for _,type in pairs{"tab", "lol"} do
+for _,type in pairs{"tab", "lol", "noo"} do
     oo.default(type)
     
     testo = oo.object:intend{

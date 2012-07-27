@@ -4,20 +4,7 @@
 -- EXPORTS: proxy, orelse                                                               --
 ------------------------------------------------------------------------------------------
 
-function proxy(target)
-	if type(target) == "table" then
-		local proxytable = {}
-		local proxymetatable = {
-			__index = function(_, key)
-				return proxy(target[key])
-			end
-		}
-		setmetatable(proxytable, proxymetatable)
-		return proxytable
-	else
-		return target --only non-destructive operations on non-tables anyway
-	end
-end
+local tt = require "typetools"
 
 function orelse(...)
 	local alternatives = arg
@@ -28,9 +15,9 @@ function orelse(...)
 		for i = 1,nups do  --save local namespace and prevent changes on the originals
 			name, value = debug.getupvalue(alt, i)
 			upvalues[i] = value
-			debug.setupvalue(alt, i, proxy(value))
+			debug.setupvalue(alt, i, tt.proxy(value))
 		end
-		setfenv(alt, proxy(_G))  --prevent changes in the global namespace
+		setfenv(alt, tt.proxy(_G))  --prevent changes in the global namespace
 		local result = alt()
 		if result then
 			for name, value in pairs(getfenv(alt)) do  --write back changes to globals
@@ -43,4 +30,8 @@ function orelse(...)
 		end
 	end
 	return nil
+end
+
+function andalso(...)
+
 end

@@ -7,8 +7,8 @@
 math.randomseed(os.time() * os.time() * math.random() - os.time()) -- this sucks
 math.random()
 local RNG = RNG or math.random
-local oo = require "oo"
 local pairs = pairs
+local oo = require "oo"
 module(...)
 local defaultmutationrate = 0.1
 

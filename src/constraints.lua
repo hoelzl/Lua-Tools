@@ -4,9 +4,9 @@
 -- EXPORTS: environment                                                                 --
 ------------------------------------------------------------------------------------------
 
-local oo = require "oo"
 local pairs = pairs
 local _G = _G
+local oo = require "oo"
 module(...)
 
 environment = oo.object:intend{
