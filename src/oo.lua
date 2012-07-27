@@ -2,10 +2,11 @@
 -- usage ---------------------------------------------------------------------------------
 -- provides versatile framework for OOP with a uniform interface across different       --
 -- implementations of objects in LUA.                                                   --
--- EXPORTS: object, public, dynamic, default                                            --
+-- EXPORTS: object, public, dynamic, instantiate, default                               --
 ------------------------------------------------------------------------------------------
 
 local pairs = pairs
+local ipairs = ipairs
 local type = type
 local setmetatable = setmetatable
 local getmetatable = getmetatable
@@ -164,7 +165,7 @@ local types = {
     noo = {
         name= "noo",
         publish = function (state, name)
-            return true
+            return nil
         end,
         represent = function (state)
             return state
@@ -206,6 +207,17 @@ local origin = {
         return self:intend{}
     end)
 }
+
+function instantiate(...)
+    local names = arg
+    return function (self, ...)
+        local template = {}
+        for i,name in ipairs(names) do
+            template[name] = arg[i] or self[name]
+        end
+        return self:intend(template)
+    end
+end
 
 -- general module management -------------------------------------------------------------
 

@@ -6,64 +6,83 @@
 
 local RNG = RNG or math.random
 local math = math
+local oo = require "oo"
 module(...)
 
-function natural(min, max, stepsize)
-    min = min or 0
-    max = max or 1
-    stepsize = stepsize or 1
-    local this = {}
-    function this.start()
-        return RNG(min, max)
-    end
-    function this.step(origin)
-        if origin == min then return min + stepsize end
-        if origin == max then return max - stepsize end
+local naturaldomain = oo.object:intend{
+    min = 0,
+    max = 1,
+    stepsize = 1,
+    new = oo.public (oo.instantiate("min", "max", "stepsize")),
+    start = oo.public (function (self)
+        return RNG(self.min, self.max)
+    end),
+    step = oo.public (function (self, origin)
+        if origin == min then return self.min + stepsize end
+        if origin == max then return self.max - stepsize end
         if RNG(0, 1) == 1 then
-            return origin + stepsize
+            return origin + self.stepsize
         else
-            return origin - stepsize
+            return origin - self.stepsize
         end
-    end
-    function this.combine(a, b)
+    end),
+    combine = oo.public (function (self, a, b)
         return math.floor(math.abs(a-b+0.5)/2)
-    end
-    return this
+    end),
+}
+
+function natural(min, max, stepsize)
+    return naturaldomain:new(min, max, stepsize)
 end
+
+local floatdomain = oo.object:intend{
+    min = 0,
+    max = 1,
+    deviation = 1,
+    scale = 1,
+    new = oo.public (function (self, min, max, deviation)
+        min = min or self.min
+        max = max or self.max
+        return self:intend{
+            min = min,
+            max = max,
+            deviation = deviation or max - min,
+            scale = max - min
+        }
+    end),
+    start = oo.public (function (self)
+        return self.scale * RNG()
+    end),
+    step = oo.public (function (self, origin)
+        local stepup   = self.scale * self.deviation * RNG()
+        local stepdown = self.scale * self.deviation * RNG()
+        local result   = origin + stepup - stepdown
+        result = result > self.max and self.max or result
+        result = result < self.min and self.min or result
+        return result
+    end),
+    combine = oo.public (function (self, a, b)
+        return math.abs(a-b)/2
+    end)
+}
 
 function float(min, max, deviation)
-    min = min or 0
-    max = max or 1
-    deviation = deviation or max - min
-    local scale = max - min
-    local this = {}
-    function this.start()
-        return scale*RNG()
-    end
-    function this.step(origin)
-        local stepup = scale*deviation*RNG()
-        local stepdown = scale*deviation*RNG()
-        local result = origin + stepup - stepdown
-        result = result > max and max or result
-        result = result < min and min or result
-        return result
-    end
-    function this.combine(a, b)
-        return math.abs(a-b)/2
-    end
-    return this
+    return floatdomain:new(min, max, deviation)
 end
 
+local justdomain = oo.object:intend{
+    new = oo.public (oo.instantiate("value")),
+    start = oo.public (function (self)
+        return self.value
+    end),
+    step = oo.public (function (self)
+        return self.value
+    end),
+    combine = oo.public (function (self)
+        return self.value
+    end)
+}
+
 function just(value)
-    local this = {}
-    function this.start()
-        return value
-    end
-    function this.step(origin)
-        return value
-    end
-    function this.combine(a, b)
-        return value
-    end
-    return this
+    return justdomain:new(value)
 end

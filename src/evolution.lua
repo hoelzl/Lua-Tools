@@ -25,7 +25,7 @@ individual = oo.object:intend{
 		domains = domains or {}
 		traits = traits or {}
 		for name,domain in pairs(domains) do
-			traits[name] = traits[name] or domain.start()
+			traits[name] = traits[name] or domain:start()
 		end
 		return this:intend{
 			domains = domains,
@@ -40,7 +40,7 @@ individual = oo.object:intend{
 	mutate = oo.public (function (this)
 		for name,trait in pairs(this.traits) do
 			if RNG() < this:rate(name) then
-				this.traits[name] = this.domains[name].step(trait)
+				this.traits[name] = this.domains[name]:step(trait)
 			end
 		end
 		return this
@@ -49,7 +49,7 @@ individual = oo.object:intend{
 	recombine = oo.public (function (this, other)
 		local offspringtraits = {}
 		for name,domain in pairs(this.domains) do
-			offspringtraits[name] = domain.combine(this.traits[name], other:gettraits()[name])
+			offspringtraits[name] = domain:combine(this.traits[name], other:gettraits()[name])
 		end
 		return individual:new(this.domains, offspringtraits)
 	end)

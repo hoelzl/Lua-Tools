@@ -17,12 +17,7 @@ environment = oo.object:intend{
 	constraints = {},
 	vars = oo.dynamic{},
 	
-	new = oo.public (function (this, order, constraints)
-		return this:intend{
-			order = order or this.order,
-			constraints = constraints or this.constraints
-		}
-	end),
+	new = oo.public (oo.instantiate("order", "constraints")),
 	
 	getvars = oo.public (function (this)
 		return this.vars
