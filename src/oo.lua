@@ -9,7 +9,6 @@ local pairs = pairs
 local ipairs = ipairs
 local type = type
 local setmetatable = setmetatable
-local getmetatable = getmetatable
 local unpack = unpack
 local error = error
 local tt = require "typetools"
@@ -102,8 +101,6 @@ local tabclass = {
 }
 
 local nooclass = {
-    __index = function () return nil end,
-    __newindex = writeerror,
     __copy = clone
 }
 
