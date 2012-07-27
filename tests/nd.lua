@@ -6,7 +6,7 @@
 ------------------------------------------------------------------------------------------
 
 package.path = "../src/?.lua;"..(package.path or "")
-require "orelse"
+require "nd"
 
 testg = "Hello"
 testh = "Hello"
@@ -49,7 +49,7 @@ function test6()
 end
 
 function dotest()
-	local result = orelse(test1, test2, test3, test4, test5, test6)
+	local result = nd.orelse(test1, test2, test3, test4, test5, test6)
 	--stop this from being a tail call
 	return result
 end

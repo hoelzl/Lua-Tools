@@ -1,10 +1,11 @@
--- test application for this under ../tests/orelse.lua
+-- test application for this under ../tests/nd.lua
 -- usage ---------------------------------------------------------------------------------
 -- provides a non-deterministic choice operator                                         --
--- EXPORTS: proxy, orelse                                                               --
+-- EXPORTS: orelse                                                                      --
 ------------------------------------------------------------------------------------------
 
 local tt = require "typetools"
+module(..., package.seeall)
 
 function orelse(...)
 	local alternatives = arg
