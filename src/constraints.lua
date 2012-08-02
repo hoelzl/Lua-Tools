@@ -5,8 +5,8 @@
 ------------------------------------------------------------------------------------------
 
 local pairs = pairs
-local _G = _G
 local oo = require "oo"
+local nd = require "nd"
 module(...)
 
 environment = oo.object:intend{
@@ -36,20 +36,9 @@ environment = oo.object:intend{
 	end),
 	
 	try = oo.public (function (this, setting)
-		--apply given data
-		local vals = {}
-		for varname,default in pairs(setting or {}) do
-			vals[varname] = _G[varname]
-			_G[varname] = setting[varname] or default
-		end
-		--evaluate constraints
 		local ranks = {}
 		for name,constraint in pairs(this.constraints) do
-			ranks[name] = constraint()
-		end
-		--restore global state
-		for varname,value in pairs(vals) do
-			_G[varname] = value
+			ranks[name] = nd.whatif(constraint, setting, false)
 		end
 		return ranks
 	end),
