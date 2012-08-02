@@ -8,6 +8,7 @@ local pairs = pairs
 local type = type
 local getmetatable = getmetatable
 local setmetatable = setmetatable
+local stdpairs = pairs
 module(...)
 
 function update(table, update)
@@ -52,8 +53,9 @@ function proxy(target)
 	if type(target) == "table" then
 		local proxytable = {}
 		local proxymetatable = {
-			__index = function(_, key)
-				return proxy(target[key])
+			__index = function(table, key)
+                table[key] = deepcopy(target[key])
+				return table[key]
 			end
 		}
 		setmetatable(proxytable, proxymetatable)
@@ -61,4 +63,12 @@ function proxy(target)
 	else
 		return target --only non-destructive operations on non-tables anyway
 	end
+end
+
+function pairs(table)
+    local metatable = getmetatable(table)
+    if metatable and metatable.__pairs then
+        return metatable.__pairs(table)
+    end
+    return stdpairs(table)
 end
