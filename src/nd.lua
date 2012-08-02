@@ -11,7 +11,6 @@ local getfenv = getfenv
 local setfenv = setfenv
 local _G = _G
 local tt = require "typetools"
-local s = require "serialize"
 module(...)
 
 function whatif(call, globalsetting, localsetting)
@@ -25,6 +24,7 @@ function whatif(call, globalsetting, localsetting)
     local globals = {}
     local locals = {}
     local upvalues = {}
+    local newvalues = {}
     local nups = 0
     --save local namespace
     if savelocal then
@@ -48,23 +48,25 @@ function whatif(call, globalsetting, localsetting)
     --retrieve new and restore old local namespace
     if savelocal then
         for i = 1,nups do
-            _, locals[i] = debug.getupvalue(call, i)
+            name, value = debug.getupvalue(call, i)
+            locals[name] = value
+            newvalues[i] = value
             debug.setupvalue(call, i, upvalues[i])
         end
     end
     --return
-    return result, (saveglobal and globals), (savelocal and locals)
+    return result, (saveglobal and globals), (savelocal and locals), (savelocal and newvalues)
 end
 
 function orelse(...)
-	for _,alt in ipairs(arg) do
-		local result, globals, locals = whatif(alt)
+	for _,alternative in ipairs(arg) do
+		local result, globals, _, upvalues = whatif(alternative)
 		if result then
-			for name, value in pairs(globals) do  --write back changes to globals
+			for name, value in pairs(globals) do   --write back changes to globals
 				_G[name] = value
 			end
-            for name, value in pairs(locals) do   --write back changes to locals
-                debug.setupvalue(alt, name, value)
+            for name, value in pairs(upvalues) do  --write back changes to locals
+                debug.setupvalue(alternative, name, value)
             end
 			return result
 		end

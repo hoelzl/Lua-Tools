@@ -13,6 +13,7 @@ local unpack = unpack
 local error = error
 local tt = require "typetools"
 module(...)
+local defaultobjecttype = "lol"
 
 -- tag management (~DSL for the object notation) -----------------------------------------
 
@@ -187,7 +188,8 @@ end
 -- general module management -------------------------------------------------------------
 
 function default(type)
+    type = type or defaultobjecttype
     object = construct(type, tt.shallowcopy(origin))
 end
 
-default("lol")
+default()
