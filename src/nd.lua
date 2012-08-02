@@ -11,20 +11,24 @@ local getfenv = getfenv
 local setfenv = setfenv
 local _G = _G
 local tt = require "typetools"
+local s = require "serialize"
 module(...)
 
 function whatif(call, globalsetting, localsetting)
     --deconstruct call patterns
-    local saveglobal = not globalsetting == false
-    local savelocal = not localsetting == false
+    local saveglobal = not (globalsetting == false)
+    local savelocal = not (localsetting == false)
     globalsetting = globalsetting == true and {} or globalsetting
     localsetting = localsetting == true and {} or localsetting
     globalsetting = globalsetting or {}
     localsetting = localsetting or {}
+    local globals = {}
+    local locals = {}
+    local upvalues = {}
+    local nups = 0
     --save local namespace
     if savelocal then
-        local upvalues = {}
-        local nups = debug.getinfo(call, "u").nups
+        nups = debug.getinfo(call, "u").nups
         for i = 1,nups do
             name, value = debug.getupvalue(call, i)
             upvalues[i] = value
@@ -33,7 +37,7 @@ function whatif(call, globalsetting, localsetting)
     end
     --save global namespace
     if saveglobal then
-        local globals = tt.proxy(getfenv(call))
+        globals = tt.proxy(getfenv(call))
         for name,value in pairs(globalsetting) do
             globals[name] = value
         end
@@ -42,15 +46,14 @@ function whatif(call, globalsetting, localsetting)
     --evaluate call
     local result = call()
     --retrieve new and restore old local namespace
-    if savelocals then
-        local locals = {}
+    if savelocal then
         for i = 1,nups do
             _, locals[i] = debug.getupvalue(call, i)
             debug.setupvalue(call, i, upvalues[i])
         end
     end
     --return
-    return result, saveglobal and globals, savelocal and locals
+    return result, (saveglobal and globals), (savelocal and locals)
 end
 
 function orelse(...)
