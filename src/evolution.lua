@@ -11,6 +11,8 @@ local pairs = pairs
 local oo = require "oo"
 module(...)
 local defaultmutationrate = 0.1
+local defaultmeetrate     = 1.0
+local defaultbirthrate    = 0.5
 
 individual = oo.object:intend{
 
@@ -59,6 +61,7 @@ individual = oo.object:intend{
 population = oo.object:intend{
 
 	elite = oo.dynamic(nil),
+	count = oo.dynamic(0),
 	domains = oo.dynamic{},
 	individuals = oo.dynamic{},
 	environment = oo.dynamic(nil),
@@ -80,8 +83,27 @@ population = oo.object:intend{
 	
 	integrate = (function (this, individual)
  		this.individuals[individual] = this:rank(individual)
+		this.count = this.count + 1
  		this:attemptusurpation(individual)
  	end),
+	
+	kill = (function (this, individual)
+		this.individuals[individual] = nil
+		this.count = this.count - 1
+	end),
+	
+	pick = (function (this)
+		local index = RNG(1, this.count)
+		local i = 1
+		for individual,_ in pairs(this.individuals) do
+			if i == index then
+				return individual
+			else
+				i = i + 1
+			end
+		end
+		error("unexpected error while picking an individual")
+	end),
 	
 	new = oo.public (function (this, environment, domains)
 		domains = domains or {}
@@ -105,6 +127,17 @@ population = oo.object:intend{
 		return adam, this:seed(n-1)
 	end),
 	
+	grow = oo.public (function (this, n)
+		if n <= 0 then return nil end
+		n = n or 1
+		local child = this:pick():recombine(this:pick())
+		this:integrate(child)
+		if n == 1 then
+			return child
+		end
+		return child, this:grow(n-1)
+	end),
+	
 	rank = oo.public (function (this, individual)
 		return this.individuals[individual] or this.environment:try(individual:gettraits())
 	end),
@@ -117,21 +150,23 @@ population = oo.object:intend{
 		return this.environment:compare(this:rank(a), this:rank(b))
 	end),
 	
-	age = oo.public (function (this, n)
+	age = oo.public (function (this, n, meetrate, birthrate)
 		if n <= 0 then return this end
 		n = n or 1
 		for individual,_ in pairs(this.individuals) do
 			individual:mutate()
 			this:attemptusurpation(individual)
 		end
-		this:survive()
+		this:survive(meetrate, birthrate)
 		if n == 1 then
 			return this
 		end
-		return this:age(n-1)
+		return this:age(n-1, meetrate, birthrate)
 	end),
 	
-	survive = oo.public (function (this)
+	survive = oo.public (function (this, meetrate, birthrate)
+		meetrate = meetrate or defaultmeetrate
+		birthrate = birthrate or defaultbirthrate
 		local individuals = {}
 		for individual,ranks in pairs(this.individuals) do
 			if not (individual == elite) then --elite always survives
@@ -140,14 +175,16 @@ population = oo.object:intend{
 		end
 		local deaths = 0
 		for i,individual in pairs(individuals) do
-			local mate = individuals[RNG(1, #individuals)]
-			if this:compare(individual, mate) then
-				this.individuals[individual] = nil
-				if 0.5 < RNG() then
-					local child = individual:recombine(mate)
-					this:integrate(child)
-				else
-					deaths = deaths + 1
+			if RNG() < meetrate then
+				local mate = individuals[RNG(1, #individuals)]
+				if this:compare(individual, mate) then
+					this:kill(individual)
+					if RNG() < birthrate then
+						local child = individual:recombine(mate)
+						this:integrate(child)
+					else
+						deaths = deaths + 1
+					end
 				end
 			end
 		end

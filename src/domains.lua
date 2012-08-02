@@ -71,6 +71,7 @@ function float(min, max, deviation)
 end
 
 local justdomain = oo.object:intend{
+    value = nil,
     new = oo.public (oo.instantiate("value")),
     start = oo.public (function (self)
         return self.value

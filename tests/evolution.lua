@@ -6,13 +6,13 @@ require "serialize"
 
 a = 5
 
-x = constraints.environment:new(function(a, b)
-	if a.bigdifference > b.bigdifference then
+x = constraints.environment:new(function(left, right)
+	if left.bigdifference > right.bigdifference then
 		return true
-	elseif a.bigdifference < b.bigdifference then
+	elseif left.bigdifference < right.bigdifference then
 		return false
 	else
-		return a.highc < b.highc
+		return left.highc < right.highc
 	end
 end)
 x:constrain("bigdifference", function() return math.abs(a-b) end)
@@ -31,6 +31,7 @@ e:seed(10)
 test2result = e:best()
 serialize.print(test2result:gettraits())
 test3result = e:age(21):best()
+e:grow(5)
 serialize.print(test3result:gettraits())
 test4result = e:age(21):best()
 serialize.print(test4result:gettraits())
