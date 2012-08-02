@@ -20,7 +20,7 @@ individual = oo.object:intend{
 	traits = oo.dynamic{},
 	
 	rate = (function (self, name)
-		return self.traits["_"..name] or self.traits["__"] or defaultmutationrate
+		return self.traits["_"..name] or self.traits["_"] or defaultmutationrate
 	end),
 	
 	new = oo.public (function (this, domains, traits)
