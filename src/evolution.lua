@@ -35,9 +35,7 @@ individual = oo.object:intend{
 		}
 	end),
 	
-	gettraits = oo.public (function (this)
-		return this.traits
-	end),
+	gettraits = oo.public (oo.getter("traits")),
 	
 	mutate = oo.public (function (this)
 		for name,trait in pairs(this.traits) do
@@ -142,9 +140,7 @@ population = oo.object:intend{
 		return this.individuals[individual] or this.environment:try(individual:gettraits())
 	end),
 	
-	best = oo.public (function (this)
-		return this.elite
-	end),
+	best = oo.public (oo.getter("elite")),
 	
 	compare = oo.public (function (this, a, b)
 		return this.environment:compare(this:rank(a), this:rank(b))

@@ -2,7 +2,7 @@
 -- usage ---------------------------------------------------------------------------------
 -- provides versatile framework for OOP with a uniform interface across different       --
 -- implementations of objects in LUA.                                                   --
--- EXPORTS: object, public, dynamic, instantiate, default                               --
+-- EXPORTS: object, public, dynamic, instantiate, getter, setter, default               --
 ------------------------------------------------------------------------------------------
 
 local pairs = pairs
@@ -13,7 +13,7 @@ local unpack = unpack
 local error = error
 local tt = require "typetools"
 module(...)
-local defaultobjecttype = "lol"
+local defaultobjecttype = "tab"
 
 -- tag management (~DSL for the object notation) -----------------------------------------
 
@@ -182,6 +182,28 @@ function instantiate(...)
             template[name] = arg[i] or self[name]
         end
         return self:intend(template)
+    end
+end
+
+function getter(...)
+    local names = arg
+    return function(self)
+        local values = {}
+        for i,name in ipairs(names) do
+            values[i] = self[name]
+        end
+        return unpack(values)
+    end
+end
+
+function setter(...)
+    local names = arg
+    return function(self, ...)
+        local values = arg
+        for i,name in ipairs(names) do
+            self[name] = values[i]
+        end
+        return self
     end
 end
 

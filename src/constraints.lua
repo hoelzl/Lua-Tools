@@ -19,9 +19,7 @@ environment = oo.object:intend{
 	
 	new = oo.public (oo.instantiate("order", "constraints")),
 	
-	getvars = oo.public (function (this)
-		return this.vars
-	end),
+	getvars = oo.public (oo.getter("vars")),
 	
 	compare = oo.public (function (this, a, b)
 		return (this.order)(a, b)
