@@ -1,0 +1,46 @@
+\begin{appendices}
+
+	\chapter{Test Programs}
+	
+	\section{Performance measurement for \texttt{oo}'s objects}
+	\label{sec:app:ooperformance}
+	
+	The measurements listed in table \ref{tab:performance} in section \ref{sec:oo:performance} were made using the program from listing \ref{lst:ooperformance} interpreted by Lua 5.1.5 under OS X 10.8.1. 
+	
+\begin{lstlisting}[language=lua, caption={Test program for memory measurement of different object types}, label=lst:ooperformance, name=lst:ooperformance]
+require "oo"
+
+oo.default(arg[1] or "lol")
+base = arg[2] or 9000
+mult = arg[3] or 10
+
+all = {}
+copies = {}
+all[0] = oo.object
+for i = 1,base do
+	all[i] = all[i-1]:intend{
+		prop = 5,
+		["test"..tostring(i)] = oo.public (function (self)
+			print("do some stuff")
+		end)
+	}
+	copies[i] = {}
+	for j = 1,mult do
+		copies[i][j] = all[i]:clone()
+	end
+end
+
+if arg[4] == "wait" then
+	os.execute("sleep 10")
+end
+if arg[4] == "inf" then
+	while true do
+end
+\end{lstlisting}
+	
+	The first argument to the program sets the object type to be used for the test. The second and third arguments define the number of objects with which multiple arrays are filled.\footnote{It is necessary to keep a reference to all the created objects since Lua features automatic garbage collection.} The fourth argument allows to pause the program's execution for a while (\texttt{"wait"}) or indefinitely (\texttt{"inf"}) in order to ease using looking up the used memory manually.
+	
+	
+	\chapter{Documentation}
+
+\end{appendices}

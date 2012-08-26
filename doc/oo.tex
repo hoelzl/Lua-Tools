@@ -1,0 +1,353 @@
+\chapter{Module \texttt{oo}: Object Orientation}
+\label{oo}
+
+In more complicated modules like \texttt{constraints} (see \ref{chap:constraints}) and \texttt{evolution} (see \ref{chap:evolution}), it felt natural to model the required data structures as objects. Lua, however, does not provide native support for object oriented programming. Using the very versatile data structures Lua does provide (mainly tables and lambdas with lexical binding), OO can easily be built into Lua, though. In fact, the introductory book \cite{Ierusalimschy2006} already illustrates two different approaches at implementing objects in Lua, which will be refered to later in this chapter. Sadly, this versatility and multitude of different approaches does not aid interoperability. So choosing a hard-coded model for object orientation felt like limiting one's choices down the road. Also, cluttering application code with commands that only deal with objects in an abstract way is not exactly good programming style.
+
+Instead, the author created an abstract module \texttt{oo} to provide all the functionality one needs to write code in an object oriented manner, without committing to a specific implementation of object orientation. But not only the module interface allows the user to plug in different implementations of OOP (by replacing the module \texttt{oo} with another module with the same interface), the module \texttt{oo} itself already offers three different implementations to be chosen on the fly.
+
+\section{Usage}
+
+\subsection{Creating objects}
+
+The most important property of \texttt{oo} is the object \texttt{oo.object}, which is the root of the inheritance path\footnote{Compare this to the \texttt{Object} class in class-based OO languages like Java, Smalltalk or Ruby.}. Using \emph{prototypal inheritance}, every other object can be derived from \texttt{oo.object}. For this purpose, \texttt{oo.object} provides the method \texttt{intend}, which creates a new object based on \texttt{oo.object} as its prototype, applying the adjustments given as an argument.\footnote{The name \texttt{"intend"} indicates that this method mirros the "extend" relation ships found in many OO languages, but with its arguments reversed.}
+
+In listing \ref{lst:point}, we create a point object by calling \texttt{oo.object:intend} and passing it our additions to the prototype \texttt{oo.object}: In this case, we define four properties called \texttt{x}, \texttt{y}, \texttt{getx} and \texttt{gety}. Similarly to Lua itself, functions (and thus methods) are "first-class" data types and can just be assigned to a property without any special treatment, as we do when defining the property \texttt{getx}. Properties are private by default, though. To make a method accessible from the outside of the object, it is necessary to use the function \texttt{oo.public} on the value of the property\footnote{The module \texttt{oo} follows the notion of classical OOP (see Smalltalk, e.g.) to only allows methods (here: functions) to be public.} as it is done for the method \texttt{gety} in listing \ref{lst:point}. We'll cover this in detail later in this chapter.
+
+\begin{lstlisting}[language=lua, caption={Creating an object with the \texttt{oo} module.}, label=lst:point, name=lst:point]
+require "oo"
+point1 = oo.object:intend{
+	x = 0,
+	y = 0,
+	getx = (function (self)
+		return self.x
+	end),
+	gety = oo.public (function (self)
+		return self.y
+	end)
+}
+print(point1:gety()) --prints 0
+\end{lstlisting}
+
+Based on Lua's \texttt{:}-notation, methods receive the object's current state as their first argument. They're also called using the same notation as can be seen in the last line of listing \ref{lst:point}. The object's methods are not called directly, though, but wrapped into a call that passes the full, private state as a the first argument instead.\footnote{This wrapper call also catches a returned private state and replaces it with the public representation instead. This makes it perfectly save to write \texttt{return self} to return the current object.} The mechanisms behind this vary based on the current type of objects in use and is discussed in-depth in section \ref{sec:oo:implementation} of this chapter.
+
+In general, each object has an \emph{outside representation} that allows to call its methods (i.e. public functions) and an \emph{internal state} that provides full-access to all properties, but should only be used inside the object's functions.\footnote{The mapping between the the outside representation and the internal state needs to be bijective for obvious reasons, but is determined by the implementation for objects currently used.}
+
+\subsection{Inheritance}
+\begin{comment}
+TODO: Split this section into "inheritance" and "shortcuts"
+Include self._super and self:super() in the "inheritance" part
+Include oo.getter and oo.setter in the "shortcuts" part
+\end{comment}
+
+
+One of the interesting aspects of the \texttt{intend} method is that it models inheritance along with creation of new objects. In our example, the new object called \texttt{point} just inherited all methods of the object \texttt{oo.object}. This means we can easily define a second point based on \texttt{point} as a prototype:
+
+\begin{lstlisting}[caption={Using \texttt{point1} as a protoype (continued from listing \ref{lst:point})}, label=lst:point2, name=lst:point]
+point2 = point1:intend{
+	x = 4,
+	y = 2
+}
+print(point2:gety()) --prints 2
+\end{lstlisting}
+
+Here, we overwrite the properties \texttt{x} and \texttt{y}, but inherit all the methods we defined for \texttt{point}. This allows for a fast creation of new objects, but only if we want to expose the object's internal state. As this is usually considered a bad design practice, we can use the prototypal inheritance to augment the \texttt{point} prototype by a \emph{factory}\footnote{see the factory pattern TODO:EXPANDTHIS} as seen in listing \ref{lst:factory}.
+
+\begin{lstlisting}[language=lua, caption={Building a factory for points.}, label=lst:factory, name=lst:factory]
+require "oo"
+point = oo.object:intend{
+	x = 0,
+	y = 0,
+	getx = (function (self)
+		return self.x
+	end),
+	gety = oo.public (function (self)
+		return self.y
+	end),
+	new = oo.public (function (self, x, y)
+		return self:intend{
+			x = x,
+			y = y
+		}
+	end)
+}
+point2 = point:new(4, 2)
+\end{lstlisting}
+
+Factory methods that use their own object as a prototype are called \texttt{new} by convention. By having \texttt{new} as a method of the prototype (instead of defining an unrelated function \texttt{newPoint} and have it construct a new object), we are able to share inherited methods with the prototype, which (generally) saves memory.
+
+Since most \texttt{new} methods end up following the pattern shown in listing \ref{lst:factory}, the module \texttt{oo} provides a shortcut for them: Using \texttt{oo.instantiate}, the code of listing \ref{lst:factory} can be written like this:
+
+\begin{lstlisting}[language=lua, caption={Rewriting listing \ref{lst:factory} using \texttt{oo.instantiate}}, label=lst:instantiate, name=lst:instantiate]
+require "oo"
+point = oo.object:intend{
+	x = 0,
+	y = 0,
+	getx = (function (self)
+		return self.x
+	end),
+	gety = oo.public (function (self)
+		return self.y
+	end),
+	new = oo.public (oo.instantiate("x", "y"))
+}
+point2 = point:new(4, 2)
+\end{lstlisting}
+
+As shown here, \texttt{oo.instantiate} returns a method that assigns its arguments to the properties whose names are passed to \texttt{oo.instantiate}, matching them by the order they appear in. Arguments at the end that are left out when calling \texttt{new} keep their default value assigned in the object definition (instead of being set to \texttt{nil}).
+
+\subsection{Copying objects}
+\texttt{oo.object} provides a method \texttt{clone()} which is a shortcut for \texttt{oo.object:intend\{\}} and clones the object it is called on. By default, this results in a shallow copy of the object's properties. However, there are cases when a copied object usually shouldn't share referential data structures with the original.\footnote{Lua's primitive data types (including strings) are immutable. Thus, the difference between a shallow and a deep copy only shows when copying tables.} This scenario can be taken care of by overwriting the \texttt{clone} method usually inherited from \texttt{oo.object}:
+
+\begin{lstlisting}[language=lua, caption={Overwriting the \texttt{clone} method}, label=lst:clone, name=lst:clone]
+require "oo"
+tt = require "typetools"
+point = oo.object:intend{
+	x = 0,
+	y = 0,
+	neighbors = {},
+	getx = (function (self)
+		return self.x
+	end),
+	gety = oo.public (function (self)
+		return self.y
+	end),
+	sety = oo.public (function (self, value)
+		self.y = value
+	end),
+	getneighbors = oo.public (function (self)
+		return self.neighbors
+	end),
+	new = oo.public (oo.instantiate("x", "y", "neighbors")),
+	clone = oo.public (function (self)
+		return self:new(self.x, self.y, tt.deepcopy(self.neighbors))
+	end)
+}
+point2 = point:new(4, 2)
+point3 = point:new(7, 8, {point2})
+point4 = point3:clone()
+point3:sety(9)
+print(point4:getneighbors()[1]:gety()) --prints 8
+
+\end{lstlisting}
+
+In listing \ref{lst:clone} we require the module \texttt{typetools} (and define a shortcut for its name) in order to use the function \texttt{typetools.deepcopy}, which (unsurprisingly) returns a deep copy of its argument.\footnote{See section \ref{sec:tt} for more information on the module \texttt{typetools} and its functions.}
+
+It is quite common for an object to feature properties that should not be accessible from outside the object and thus need to be deepcopied when cloning the object.\footnote{This mostly occurs for object associations usually modeled as \emph{compositions} in UML. TODO:EXPANDTHIS } To make these cases easier to implement, \texttt{oo} provides the tagging function \texttt{oo.dynamic} that is used similarly to \texttt{oo.public} but allows to mark table properties that are an integral part of the object and share the object's life cycle. These are then automatically deepcopied when cloning (or inheriting from) an object.
+
+\begin{lstlisting}[language=lua, caption={Rewriting listing \ref{lst:clone} using \texttt{oo.dynamic}}, label=lst:dynamic, name=lst:dynamic]
+require "oo"
+point = oo.object:intend{
+	x = 0,
+	y = 0,
+	neighbors = oo.dynamic ({}),
+	getx = (function (self)
+		return self.x
+	end),
+	gety = oo.public (function (self)
+		return self.y
+	end),
+	sety = oo.public (function (self, value)
+		self.y = value
+	end),
+	getneighbors = oo.public (function (self)
+		return self.neighbors
+	end),
+	new = oo.public (oo.instantiate("x", "y", "neighbors"))
+}
+point2 = point:new(4, 2)
+point3 = point:new(7, 8, {point2})
+point4 = point3:clone()
+point3:sety(9)
+print(point4:getneighbors()[1]:gety()) --prints 8
+\end{lstlisting}
+
+
+\section{Implementation}
+\label{sec:oo:implementation}
+
+\subsection{Object types}
+
+As mentioned above, the module \texttt{oo} allows the user to dynamically choose form various implementations of object orientation in Lua. This can be done using the \texttt{oo.default} function to set the object type of \texttt{oo.object} and thus all newly created objects. Its valid arguments are \texttt{"lol"}, \texttt{"tab"} and \texttt{"noo"}, which will be discussed in their respective sections in this chapter. We call these implementations \emph{object types}.
+
+These mainly differ in their memory requirements, with \texttt{"noo"} forfeiting data capsulation in order to save the most memory. Thus, it is only recommended to use \texttt{"noo"} after the program has been tested with one of the other object types and thereby been shown to respect the privacy of properties anyway.
+
+The main advantage of using the types provided by the \texttt{oo} module is interoperability, though. By committing to the \texttt{oo}'s interface, the programmer can write his or her code independent on the the object type he or she may later be wishing to use. And since the templates for object used by \texttt{oo} are descriptive enough for general OOP, this code can still be used even if the OO system is to be changed entirely. This allows OOP in Lua to focus on the functional instead of the management aspects.
+
+Since the construction process of an object\footnote{This is mainly done by the local function \texttt{oo.construct} and is discussed in detail in the following section.} always starts with the "template form" also used in the argument to \texttt{oo.object:intend}, the object type can be changed transparently and it is easily possible to use the different object types within the same program or inheritance hierarchy.
+
+The rest of this chapter will discuss the internals of the \texttt{oo} module and should \emph{not} be of any importance to readers who simply want to use OOP in their software. However, if the reader wants to optimize the memory usage of the program, to extend the presented capabilities of \texttt{oo} or to write compatible tools and libraries, this is the in-depth description of how \texttt{oo} actually works.
+
+\subsection{The \texttt{construct} routine and the tagging mechanism}
+
+As is hopefully clear from the previous examples, the method \texttt{oo.object:intend} is the main tool to create objects. Inside of \texttt{oo}, \texttt{oo.object} is defined using the same \emph{template form} we usually pass to \texttt{intend}.
+
+\begin{lstlisting}[language=lua, caption={The definition of the methods of \texttt{oo.object} from \texttt{"oo.lua"}}, label=lst:origin, name=lst:origin]
+local origin = {
+    intend = public (function (self, intension)
+        return construct(self._spawntype, tt.update(template(self), intension))
+    end),
+    new = public (function (self)
+        return self:intend{}
+    end),
+    clone = public (function (self)
+        return self:intend{}
+    end)
+}
+\end{lstlisting}
+
+The local function \texttt{template} is able to serialize an object into template form (i.e. generate a template that can be used to create the object anew). \texttt{tt.update} is imported from the module \texttt{typetools} (see \ref{chap:tt}) and works as expected. The main actor in this play is \texttt{oo}'s local function \texttt{construct}, though. It takes an object type\footnote{Any object is expected to define the type of its children in the special property \texttt{\_spawntype}. Usually, the user should not access properties starting with an underscore (\texttt{"\_"}) as these are managed by \texttt{oo}. One can, however, do so in order to fine-tune the usage of different object types.} and a template table and creates the respective object.
+
+Before getting into \texttt{construct}, we should have a look at the tagging functions \texttt{oo.public} and \texttt{oo.dynamic}. They return their argument packed into a special data structure that can be recognized by \texttt{construct} so that it can handle the tagged properties accordingly. But since one can save arbitrary data structures in an object's properties, it's not trivial to discriminate between user data to be saved in the property and the metadata returned by the tagging functions. This is solved by including a reference to a local and unique data structure that cannot be known to any part of the software outside of the module \texttt{oo}. It's a common Lua idiom\footnote{See section 13.4.3 of \cite{Ierusalimschy2006}.} to use an empty table (Lua's only referential data structure) for that, as shown for \texttt{oo.public}\footnote{\texttt{oo.dynamic} is defined analogously.} in listing \ref{lst:public}.
+
+\begin{lstlisting}[language=lua, caption={The definition of \texttt{oo.public} from \texttt{"oo.lua"}}, label=lst:public, name=lst:public]
+local publictag = {}
+
+function public(method)
+    if not type(method) == "function" then
+        error("only functions can be public")
+    end
+    return {tag=publictag, entity=method}
+end
+\end{lstlisting}
+
+The tag data structure returned by this function can then be decomposed in the main loop of \texttt{construct}. The tagged properties are saved in the special object properties \texttt{\_interface} and \texttt{\_dynamics} so they can be retrieved when inheriting from the just created object. The special property \texttt{\_spawntype} is set to the given object type.
+
+To create the actual data structures for the public representation of the object, \texttt{construct} refers to the local table \texttt{types}, which defines the behavior of all available object types by providing functions called \texttt{publish} and \texttt{represent} for each of them. They define the data structures used in the special \texttt{\_interface} property as well as the outside representation.
+
+\begin{lstlisting}[language=lua, caption={The definition of \texttt{construct} from \texttt{"oo.lua"}}, label=lst:construct, name=lst:construct]
+local function construct(typename, template)
+    otype = types[typename] or error("object type "..tostring(typename).." doesn't exist")
+    local state = {_spawntype = otype.name}
+    local interface = {}
+    local dynamics = {}
+    for name, value in pairs(template) do
+        if type(value) == "table" and value.tag == publictag then
+            state[name] = value.entity
+            interface[name] = otype.publish(state, name)
+        elseif type(value) == "table" and value.tag == dynamictag then 
+            state[name] = tt.deepcopy(value.entity)
+            dynamics[name] = true
+        else
+            state[name] = value
+        end
+    end
+    state._interface = interface
+    state._dynamics = dynamics
+    return otype.represent(state)
+end
+\end{lstlisting}
+
+
+\subsection{Building objects with closures}
+
+The most basic approach to implement object orientation as a library for a language (with lexical binding), is called \emph{let over lambda}.\footnote{See \cite{Hoyte2008}, which illustrates this approach for LISP.} It uses a local binding ("let") private to the methods ("lambdas") of an object to save the (private) internal state. The methods (usually summed up into a record) then act as the (public) outside representation of the object.
+
+A naive implementation of the point object from the previous sections using this scheme could look like this:\footnote{See also section 16.4 in \cite{Ierusalimschy2006} for a similar approach at OOP in Lua.}
+
+\begin{lstlisting}[language=lua, caption={Possible implementation of a point object using closures}, label=lst:lol, name=lst:lol]
+function newPoint()
+	local self = {x=0, y=0}
+	function self.getx()
+		return self.x
+	end
+	function self.gety()
+		return self.y
+	end
+	return {self.gety}
+end
+print(newPoint().gety()) -- prints 0
+\end{lstlisting}
+
+Note that since this example uses the lexical scopes enclosing the \texttt{gety} function to keep track of the current state of the object (saved in the variable \texttt{self}), there is no need use Lua's \texttt{:}-notation for calling a method.\footnote{Since Lua's \texttt{:}-notation is just language shortcut, it can be used when giving all methods a "throw-away" parameter, though. Note that the interface for using \texttt{oo}'s objects stays the same regardless of the object type!} All methods meant to be public need to be returned in a separate table for the outside access of the object.
+
+While the most general approach at object orientation, this implementation requires quite some non-functional code, including the explicit declaration of the object's internal state and outside representation. And while the module \texttt{oo} can obviously do this in the background, the let over lambda approach has one major drawback: The methods are defined when creating an object and are thus created anew with every new object.\footnote{In \texttt{oo}'s implementation, derived objects share the actual function, but need to create their own wrapper method to provide the right context for the closure and thus create about the same amount of (possibly smaller) functions in memory.} This is necessary as each new object needs to use the algorithmically same methods in a different (i.e. its own) context.
+
+
+\subsection{Building objects with weak tables}
+
+A more hierarchically flat approach for OOP in Lua is provided by a Lua mechanism called \emph{weak tables}. These are Lua tables in which the garbage collector is allowed to collect individual entries when there are no other references pointing to them.\footnote{This behavior can be fine-tuned in Lua. In this scenario, we use a weak table whose entries will be collected once all references to their respective \emph{keys} are deleted.} See chapter 17 in \cite{Ierusalimschy2006} for further information on weak tables.
+
+In the following examples, weak tables will be used to keep a list of all objects currently alive in the execution of the program without keeping the garbage collector from deleting them just because their in that list. After all, we're happy to free as much memory as possible! This list, however, allows to make the mapping between the external representation and the internal state of an object explicit. Since this mapping is bijective anyways, this can easily be done by a (weak) Lua table whose keys are the external representations and values are the internal states.\footnote{A table is declared to be a weak table by altering the \texttt{\_\_mode} entry of its assigned metatable. More in the following paragraphs.}
+
+\begin{lstlisting}[language=lua, caption={Defining a global weak table in order to list all objects in the progam}, label=lst:tab1, name=lst:tab]
+--create table for all objects
+objects = {}
+--make that table a weak table
+setmetatable(objects, {__mode = "k"})
+\end{lstlisting}
+
+When defining a new object, one needs to insert a new (unique) representation as a key into the \texttt{objects} table and assign it the internal state as a value. Also, we need a lookup table in order to decide whether to expose a given method to the public, i.e. make it accessible via the outside representation in the first place. In this case, we save the set of (keys of) public methods in the object property \texttt{\_interface}.\footnote{The module \texttt{oo} actually uses the same property and the same data structure, which is a common Lua idiom for saving sets. The programmer should not access this property directly, though. Use \texttt{oo.public} instead!}
+
+\begin{lstlisting}[language=lua, caption={Possible implementation of a point object using a global weak table (continued froom listing \ref{lst:tab1})}, label=lst:tab2, name=lst:tab]
+--create unique external representation
+point1 = {}
+--assign internal state
+objects[point1] = {
+	x = 0,
+	y = 0,
+	getx = (function (self)
+		return self.x
+	end),
+	gety = (function (self)
+		return self.y
+	end),
+	_interface = {gety = true} --declare public methods
+}
+\end{lstlisting}
+
+\emph{Metatables} are another Lua mechanism that can aid us at this approach at OOP: Each table in Lua can be assigned a metatable, which provides specific entries which Lua will look up on certain occasions. Through these "hooks", the programmer can control the table's behavior in otherwise invalid contexts. In the following code, mainly the metatable entry (also called \emph{metamethod}) \texttt{\_\_index}, which is automatically called when the program attempts to access a table entry which is not present, will be used to redirect calls on the external representation to a context where the internal state is accessible. Also, it allows us to perform a check against the exposed interface before actually returning the property.
+
+\begin{lstlisting}[language=lua, caption={Accessing the public methods of the internal state directly through the external representation (continued from listing \ref{lst:tab2})}, label=lst:tab3, name=lst:tab]
+--create metatable with __index metamethod
+meta = {
+	__index = (function (representation, key)
+		local state = objects[representation]
+		if state._interface[key] then
+			return state[key]
+		else
+			return nil
+		end
+	end)
+}
+--assign that metatable to the external representation
+setmetatable(point1, meta)
+
+print(point1:getx()) --finally prints 0
+\end{lstlisting}
+
+While this approach may look very lengthy now, the code of listing \ref{lst:tab1} and the declaration of \texttt{meta} in listing \ref{lst:tab3} only need to be done once in the program and their results can (and have to) be reused for every additional object we may define this way. Thus, while this approach tends to create a lot of tables (and an especially large one among them), it doesn't need to keep around as many closures as the let-over-lambda approach.
+
+\subsection{Performance}
+\label{sec:oo:performance}
+
+The last available option for \texttt{oo.default} is \texttt{"noo"}. Using this object type, an object's external representation will equal its internal state (both being simple Lua tables). While we forfeit data capsulation, the memory requirements can be severely reduced this way. Either way, it is highly recommended to use one of the other object types during development and only switch to \texttt{"noo"} on already tested code (that respects private properties anyway) and when actually facing memory issues. 
+
+The data structures generated by this object type mirror simple Lua tables, which can be used to define an object-like point data structure like the following:\footnote{The getter functions are obviously redundant since there is no policy preventing the user from accessing the properties directly anyway.}
+
+\begin{lstlisting}[language=lua, caption={Possible implementation of a point using Lua's tables}, label=lst:noo, name=lst:noo]
+point1 = {
+	x = 0,
+	y = 0,
+	getx = function(self)
+		return self.x
+	end,
+	gety = function(self)
+		return self.y
+	end
+}
+print(point1:gety()) --prints 0
+\end{lstlisting}
+
+Using the test program discussed in section \ref{sec:app:ooperformance}, the memory savings show clearly. Table \ref{tab:performance} lists a few examples for that.\footnote{These tests are also the basis for \texttt{"tab"} being the default type in the current version of \texttt{oo}. Note that future versions may change that, though.}
+
+ \begin{table}[h]
+ \caption{Performance measurements of the different object types (see section \ref{sec:app:ooperformance})}
+ \begin{tabular}{l|rrr}
+test case & lol & tab & noo\\
+9000 objects, 10 copies of each & 203MB & 122MB & 75MB \\
+10 objects, 9000 copies of each & 183MB & 104MB & 68MB \\
+ \end{tabular}
+ \label{tab:performance}
+ \end{table}
+
+
