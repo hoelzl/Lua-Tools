@@ -1,0 +1,89 @@
+\chapter{Modules \texttt{serialize}, \texttt{typetools} and \texttt{nd}: Tools}
+\label{chap:serialize}
+\label{chap:typetools}
+\label{chap:nd}
+
+The three modules discussed in this chapter were mainly created in order to provide functions that are needed by other (more complex) modules but are independent on their respective main purpose, so that it was a natural step to decouple parts of the functionality.
+
+Understanding these auxiliary modules is not necessary in order to use the more high-level modules that build upon them: In most cases, the functionality provided by these modules might as well fit into the standard library and the functions provided by these modules work like an experienced programmer would expect them to. If that's not the case, they will be discussed shortly in the chapter of the modules they are used in.
+
+\section{Module \texttt{serialize}: Serializing arbitrary data structures}
+
+\subsection{The problem of data serialization}
+\label{sec:tools:serialize:problem}
+
+The module \texttt{serialize} is mainly used in the \texttt{distributed} script (see chapter \ref{chap:distributed}) to transmit Lua data structures over the network but has also proven extremely useful for many different I/O tasks and debugging complex data structures. It allows the programmer to convert data structures into a literal that can be parsed by a Lua interpreter to retain an equivalent data structure. The module \texttt{serialize} is able to serialize data of the Lua types \texttt{boolean}, \texttt{number}, \texttt{string} and \texttt{table}.\footnote{Note that as Lua provides not enough reflection possibilities on functions, \texttt{serialize} cannot work on them. Thus, \texttt{serialize} is also unable to serialize objects like the ones defined by the module \texttt{oo} (see chapter \ref{chap:oo}).} Serialization is trivial for the first three of these data types in Lua,\footnote{Note that Lua's strings are primitives and non-referential types (contrary to strings in Java, fore example).} section \ref{sec:tools:algorithm} focuses on table serialization.
+
+Once serialized, a data structure can be read using Lua's \texttt{loadstring} function, which takes a string (of hopefully Lua code) and returns a \emph{function} that executes the given code when called. This behavior brings the advantage that parsing and executing the code can be done separately, but it also allows parameters to be passed into the given code. And like any other function in Lua, the code given introduces its own local namespace and allows for lexical binding. Also, if we want to extract a data structure from the given code (without writing it in a variable and thus affecting the surrounding program), we need to use a \texttt{return} statement.
+
+\begin{lstlisting}[language=lua, caption={Using Lua's \texttt{loadstring} function}, label=lst:loadstring, name=lst:loadstring]
+x = 4
+f = loadstring("return ... + x") -- "..." denotes the parameter
+print(type(f))                   -- prints "function"
+print(f(5))                      -- prints 9
+\end{lstlisting}
+
+\subsection{Usage}
+\begin{comment}
+TODO: Adjust actual function serialize.command to accept lists of parameters
+\end{comment}
+
+The function \texttt{serialize.data} returns the serialization of the given parameter as a string. \texttt{serialize.command} allows to serialize a statement by passing it both a function name and a list of parameters. The generated code will then return the result of calling the given function with the given arguments. This is especially useful when transmitting programs or program parts between systems.\footnote{This is done by the script \texttt{dstributed} in chapter \ref{chap:distributed}.}
+
+\begin{lstlisting}[language=lua, caption={Using \texttt{serialize.data} and \texttt{serialize.command}}, label=lst:serializedatacommand, name=lst:serializedatacommand]
+require "serialize"
+x = 4
+sx = serialize.data(x)
+print(sx)                            -- prints "return (4)"
+print(loadstring(sx)())              -- prints 4
+sp = serialize.command("print", x)
+print(sp)                            -- prints "return print(4)"
+loadstring(sp)()                     -- prints 4
+\end{lstlisting}
+
+Since recursive tables cannot be written as table literals in Lua, \texttt{serialize} and all its functions use a slightly different format for table serialization: The return statement is prefixed by a prologue of local variable declarations. Although this makes the serialized code a bit lengthy, it ensures that no declarations in the current program are changed upon loading the serialized data structure.
+
+\begin{lstlisting}[language=lua, caption={Serializing a recursive table}, label=lst:serializeprint, name=lst:serializeprint]
+require "serialize"
+t = {x = 4, y = 5}
+t.z = t
+serialize.print(t)         -- prints 'local x1={}; x1["y"]=5; x1["x"]=4; x1["z"]=x1; return (x1)'
+\end{lstlisting}
+
+Note that \texttt{serialize.print} is a shortcut that serializes all given parameters and then prints them using the global \texttt{print}.
+
+\subsection{Algorithm}
+\label{sec:tools:algorithm}
+
+Both \texttt{serialize.data} and \serialize{serialize.command} use the internal function \texttt{serialize} (of the module \texttt{serialize}). This section will show briefly how it works. Users of the module should not be concerned about it and this section is merely meant as an in-depth explanation for programmers that want to extend \texttt{serialize}.
+
+The algorithm used in \texttt{serialize} closely resembles the serialization algorithm given in section 12.2 of \cite{Ierusalimschy2006}, though it does not require a name for the initial data structure because it serializes to Lua chunks (using the \texttt{return} key word as discussed in section \ref{sec:tools:serialize:problem}).\footnote{The version presented in \cite{Ierusalimschy2006} is targeted at persistance and thus aims to restore the global namespace from the serialized data. The module \texttt{serialize} opts for message passing and thus aims to keep the global namespace unaffected.} To keep track of the current progress of serialization, the function \texttt{serialize} needs three accumulator parameters that are passed on to recursive calls of the function, which are necessary iff it is passed a table. When serializing a data structure that is not part of larger one, these parameters can be left out\footnote{It is a common Lua idiom to include them in one function which uses the \texttt{or} operator to set these parameters to their default values if necessary, as it is done in listing \ref{lst:serialize}.}, otherwise they carry a lookup table of all currently serialized data structures (\texttt{saved}), which allows the algorithm to fill in their already-assigned name and avoid running into an infinite loop on self-containing tables, the code for all current declarations (\texttt{prologue}) and the \texttt{index} that is used to generate new, unique variable names.
+
+\begin{lstlisting}[language=lua, caption={The private function \texttt{serialize} of the module \texttt{serialize}}, label=lst:serialize, name=lst:serialize]
+local function serialize(expr, saved, prologue, index)
+	saved = saved or {}
+	prologue = prologue or ""
+	index = index or 1
+	if type(expr) == "number" or type(expr) == "boolean" then
+		return tostring(expr), saved, prologue, index
+	elseif type(expr) == "string" then
+		return string.format("%q", expr), saved, prologue, index
+	elseif type(expr) == "table" then
+		if not saved[expr] then
+			saved[expr] = "x"..tostring(index)
+			prologue = prologue..string.format("local %s={}; ", saved[expr])
+			index = index + 1
+			for key,val in pairs(expr) do
+				kexpr, saved, prologue, index = serialize(key, saved, prologue, index)
+				vexpr, saved, prologue, index = serialize(val, saved, prologue, index)
+				prologue = prologue..string.format("%s[%s]=%s; ", saved[expr], kexpr, vexpr)
+			end
+		end
+		return saved[expr], saved, prologue, index
+	else
+		error("cannot serialize "..type(expr))
+	end
+end
+\end{lstlisting}
+
+Exposing these accumulators to user of the function \texttt{serialize} allows for precise combination of multiple serialization processes, as done by \texttt{serialize.command}, for example.
