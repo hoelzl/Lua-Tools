@@ -87,3 +87,71 @@ end
 \end{lstlisting}
 
 Exposing these accumulators to user of the function \texttt{serialize} allows for precise combination of multiple serialization processes, as done by \texttt{serialize.command}, for example.
+
+
+\section{Module \texttt{typetools}: Table manipulation}
+
+\subsection{Lua's metatables}
+\label{sec:metatables}
+
+Lua's only native complex data structure are tables, which can be used as an adequate representation of most other complex data structures.\footnote{Chapter 11 of \cite{Ierusalimschy2006} provides many example implementations of well-known data structures in native Lua using tables. Chapter \ref{chap:oo} of this paper expains mutliple implementation of objects in Lua, which all involve tables at some point.} However, tables can also be used to replace basic data structures like Lua's other native data types to a certain extent. A table's behavior can be fine-tuned using the \emph{metatable} mechanism of Lua: Each table can be assigned exactly one metatable, which is a table used to contain special information for the Lua interpreter about how to handle certain situations. These situations are typically type errors that the interpreter can avoid using the functions provided by the metatable. For example, it is usually not possible to add two tables using Lua's \texttt{+} operator. However, if those tables' metatables\footnote{If both addends are tables, Lua refers to the first one's metatable first, then to the second one's. So technically, only one of their metatables needs to define an entry \texttt{"\_\_add"}} define an entry with the key \texttt{"\_\_add"}, this entry's value (hopefully a function) will be called instead of raising an error. Metatable entries that are expected to contain a function (usually in order to simulate the behavior of a built-in operator) are also called \emph{metamethods}.
+
+\begin{lstlisting}[language=lua, caption={Defining vector addition using the metamethod \texttt{"\_\_add"}}, label=lst:vecadd, name=lst:vecadd]
+vec1 = {1, 2, 3}
+vec2 = {7, 8, 9}
+-- vec = vec1 + vec2 -- throws error: "attempt to perform arithmetic on global 'vec1' (a table value)"
+metavec = {
+	__add = function (a, b)
+		local result = {}
+		for i,_ in ipairs(a) do
+			result[i] = a[i] + b[i]
+		end
+		return result
+	end
+}
+setmetatable(vec1, metavec)
+setmetatable(vec2, metavec)
+vec = vec1 + vec2 -- work as expected
+print(vec[3]) -- prints 12
+\end{lstlisting}
+
+Lua provides a number of metamethods in order to enable (a certain extent of) \emph{type virtualiziation}, i.e. simulating other Lua types using tables and metatables.\footnote{For an extensive list of possible virtualizations, see the article \emph{LuaVirtualization} in \cite{LuaUsersWiki}. For an extensive list of all available metamethods, see the article \emph{MetatableEvents}.} However, the module \texttt{typetools} mainly uses the metatable mechanism to work on tables, as using this method, a table can also simulate to contain the entries of another table: The metamethod \texttt{"\_\_index"} is called every time the program tries to access an \emph{undefined} entry in the table the metamethod is defined for. The function \texttt{typetools.proxy} utilizes this "hook" to provide a fast method for (simulating) copying a table: As shown in listing \ref{lst:proxy}, it returns an empty table whose metatable redirects every access to a deep copy of the given target's respective entry. When accessing the whole table, \texttt{typetools.proxy} is just an elaborate version of a common deepcopy algorithm, but when it is clear that only small parts of the original table are actually accessed destructively, \texttt{typetools.proxy} can save memory and computation type.\footnote{An example of exactly that situation is shown in section \ref{sec:whatif}.}
+
+\begin{lstlisting}[language=lua, caption={The function \texttt{typetools.proxy}}, label=lst:proxy, name=lst:proxy]
+function proxy(target)
+	if type(target) == "table" then
+		local proxytable = {}
+		local proxymetatable = {
+			__index = function(table, key)
+				table[key] = deepcopy(target[key])
+				return table[key]
+			end
+		}
+		setmetatable(proxytable, proxymetatable)
+		return proxytable
+	else
+		return target --only non-destructive operations on non-tables anyway
+	end
+end
+\end{lstlisting}
+
+Note that \texttt{typetools.proxy} is not a transparent replacement for a "true" copy algorithm and cannot be in Lua 5.1 as table virtualization is not fully possible.
+
+\subsection{More table hooks}
+
+The main problem with table virtualization in the current Lua version\footnote{This paper is based on Lua 5.1.5.} is the lack of a hook to catch Lua's built-in iteration function \texttt{pairs} and \texttt{ipairs}. The module \texttt{typetools} provides a replacement for Lua's standard function \texttt{pairs} that explicitly calls the (conventional) metamethod \texttt{"\_\_pairs"} before performing the same task as the built-in \texttt{pairs} function.\footnote{The module \texttt{typetools} follows a suggestion in the article \emp{GeneralizedPairsAndIpairs} of \ref{LuaUsersWiki2006} that when a \texttt{"\_\_pairs"} metamethod is established, it should be used to differentiate between an unordered iteration (\texttt{pairs}) and an ordered one (\texttt{ipairs}) instead of having the user of the table make that decision.} Thus, \texttt{typetools.pairs} can overcome the table virtualization issue, but in order to ensure compatibility, it needs to be used in \emph{every} table iteration in a program, which is impractical in most cases.
+
+The function \texttt{typetools.proxy} shown in listing \ref{lst:proxy} above calls (within the same namespace) the function \texttt{typetools.deepcopy}, which basically works as expected and thus fills a hole in Lua's standard library. The module \texttt{typetools} also provides its pendant, \texttt{typetools.shallowcopy}. However, \texttt{typetools.deepcopy} refers to its argument's metatable, too: Before performing an expensive deep copy algorithm, the function checks for the metamethod \texttt{"\_\_copy"} and (if it is present) returns its result. Note that the metamethod \texttt{"\_\_copy"} is not used or defined by the Lua interpreter. Just by using a certain entry of the metatable, the programmer can implicitly introduce new metamethods as it done by \texttt{typetools}. The deep copy algorithm can thus provide a special form of \emph{polymorphism} as it will work differently on different tables.\footnote{The objects defined by the module \texttt{oo} use this behavior of \texttt{typetools.deepcopy} to have it call their own copy method \texttt{clone}. See section \ref{sec:oo:copying} for more on the method \texttt{oo.object:clone}.}
+
+
+
+\section{Module \texttt{nd}: Non-deterministic program flow}
+
+\subsection{State in a Lua program}
+
+\subsection{Asking \texttt{whatif}}
+\label{sec:whatif}
+
+
+
+

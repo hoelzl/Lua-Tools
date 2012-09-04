@@ -97,6 +97,7 @@ point2 = point:new(4, 2)
 As shown here, \texttt{oo.instantiate} returns a method that assigns its arguments to the properties whose names are passed to \texttt{oo.instantiate}, matching them by the order they appear in. Arguments at the end that are left out when calling \texttt{new} keep their default value assigned in the object definition (instead of being set to \texttt{nil}).
 
 \subsection{Copying objects}
+\label{sec:oo:copying}
 \texttt{oo.object} provides a method \texttt{clone()} which is a shortcut for \texttt{oo.object:intend\{\}} and clones the object it is called on. By default, this results in a shallow copy of the object's properties. However, there are cases when a copied object usually shouldn't share referential data structures with the original.\footnote{Lua's primitive data types (including strings) are immutable. Thus, the difference between a shallow and a deep copy only shows when copying tables.} This scenario can be taken care of by overwriting the \texttt{clone} method usually inherited from \texttt{oo.object}:
 
 \begin{lstlisting}[language=lua, caption={Overwriting the \texttt{clone} method}, label=lst:clone, name=lst:clone]
@@ -266,7 +267,7 @@ While the most general approach at object orientation, this implementation requi
 
 \subsection{Building objects with weak tables}
 
-A more hierarchically flat approach for OOP in Lua is provided by a Lua mechanism called \emph{weak tables}. These are Lua tables in which the garbage collector is allowed to collect individual entries when there are no other references pointing to them.\footnote{This behavior can be fine-tuned in Lua. In this scenario, we use a weak table whose entries will be collected once all references to their respective \emph{keys} are deleted.} See chapter 17 in \cite{Ierusalimschy2006} for further information on weak tables.
+A hierarchically flatter approach for OOP in Lua is provided by a Lua mechanism called \emph{weak tables}. These are Lua tables in which the garbage collector is allowed to collect individual entries when there are no other references pointing to them.\footnote{This behavior can be fine-tuned in Lua. In this scenario, we use a weak table whose entries will be collected once all references to their respective \emph{keys} are deleted.} See chapter 17 in \cite{Ierusalimschy2006} for further information on weak tables.
 
 In the following examples, weak tables will be used to keep a list of all objects currently alive in the execution of the program without keeping the garbage collector from deleting them just because their in that list. After all, we're happy to free as much memory as possible! This list, however, allows to make the mapping between the external representation and the internal state of an object explicit. Since this mapping is bijective anyways, this can easily be done by a (weak) Lua table whose keys are the external representations and values are the internal states.\footnote{A table is declared to be a weak table by altering the \texttt{\_\_mode} entry of its assigned metatable. More in the following paragraphs.}
 
@@ -296,7 +297,7 @@ objects[point1] = {
 }
 \end{lstlisting}
 
-\emph{Metatables} are another Lua mechanism that can aid us at this approach at OOP: Each table in Lua can be assigned a metatable, which provides specific entries which Lua will look up on certain occasions. Through these "hooks", the programmer can control the table's behavior in otherwise invalid contexts. In the following code, mainly the metatable entry (also called \emph{metamethod}) \texttt{\_\_index}, which is automatically called when the program attempts to access a table entry which is not present, will be used to redirect calls on the external representation to a context where the internal state is accessible. Also, it allows us to perform a check against the exposed interface before actually returning the property.
+\emph{Metatables} are another Lua mechanism that can aid us at this approach at OOP: Each table in Lua can be assigned a metatable, which provides specific entries which Lua will look up on certain occasions. Through these "hooks", the programmer can control the table's behavior in otherwise invalid contexts.\footnote{See \ref{sec:metatables} of this paper or chapter 13 of \cite{Ierusalimschy2006} for a more extensive introduction to metatables.} In the following code, mainly the metatable entry (also called \emph{metamethod}) \texttt{\_\_index}, which is automatically called when the program attempts to access a table entry which is not present, will be used to redirect calls on the external representation to a context where the internal state is accessible. Also, it allows us to perform a check against the exposed interface before actually returning the property.
 
 \begin{lstlisting}[language=lua, caption={Accessing the public methods of the internal state directly through the external representation (continued from listing \ref{lst:tab2})}, label=lst:tab3, name=lst:tab]
 --create metatable with __index metamethod
