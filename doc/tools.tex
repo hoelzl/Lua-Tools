@@ -144,14 +144,108 @@ The main problem with table virtualization in the current Lua version\footnote{T
 The function \texttt{typetools.proxy} shown in listing \ref{lst:proxy} above calls (within the same namespace) the function \texttt{typetools.deepcopy}, which basically works as expected and thus fills a hole in Lua's standard library. The module \texttt{typetools} also provides its pendant, \texttt{typetools.shallowcopy}. However, \texttt{typetools.deepcopy} refers to its argument's metatable, too: Before performing an expensive deep copy algorithm, the function checks for the metamethod \texttt{"\_\_copy"} and (if it is present) returns its result. Note that the metamethod \texttt{"\_\_copy"} is not used or defined by the Lua interpreter. Just by using a certain entry of the metatable, the programmer can implicitly introduce new metamethods as it done by \texttt{typetools}. The deep copy algorithm can thus provide a special form of \emph{polymorphism} as it will work differently on different tables.\footnote{The objects defined by the module \texttt{oo} use this behavior of \texttt{typetools.deepcopy} to have it call their own copy method \texttt{clone}. See section \ref{sec:oo:copying} for more on the method \texttt{oo.object:clone}.}
 
 
-
 \section{Module \texttt{nd}: Non-deterministic program flow}
 
 \subsection{State in a Lua program}
 
+The main purpose of the module \texttt{nd} is to provide a non-deterministic choice operator (\texttt{nd.orelse}) to allow the user to split the program flow into independent branches, which is not easily accomplished using the standard tools of a script language like Lua. The basis of non-deterministic execution is the function \texttt{nd.whatif}, which is very useful for a variety of search problems.\footnote{Like the constraint solving performed by the module \texttt{constraints} (see chapter \ref{chap:constraints}).} It allows to shield the program's state from changes by the function passed as its first argument and returns this function's return value as if it was executed under normal circumstances.\footnote{\texttt{nd.whatif} also returns a few tables with variable bindings, which will be discussed later in this section.} See listing \ref{lst:nd} for an example.
+
+\begin{lstlisting}[language=lua, caption={Preventing global changes with \texttt{nd.whatif}}, label=lst:nd, name=lst:nd]
+require "nd"
+x = 5
+more = function ()
+	x = x + 1
+	return x
+end
+print((nd.whatif(more))) -- prints 6
+print(x) -- prints 5
+\end{lstlisting}
+
+This behavior is achieved in Lua by saving the complete global state before executing the given function. (We will call the first argument to \texttt{nd.whatif} \emph{possibility} from now on.) As Lua supports lexical binding inside lambdas (i.e., \emph{closures}), the possibility can access all variables of its enclosing namespaces and thus cause side effects in any part of the software that shares that variables. From a Lua perspective, the relevant variables can be split into two categories: Global variables are defined by the possibility's \emph{function environment}, which is usually set to the current global environment\footnote{For readers unfamiliar with Lua: Lua saves the global environment as a table with the variable names as keys. It can be accessed directly through the global variable \texttt{\_G} (i.e. \texttt{\_G.\_G == \_G}). Thus, the global environment \emph{is} just a common data structure that can easily be passed to other functions.} of the function's definition. Shared local variables are defined through standard lexical binding and are also called \emph{upvalues} of a function. Both of these cases need to be handled differently in Lua.
+
+\subsection{Function introspection}
+This (sub)section describes the means by which the function environment and upvalues of a function can be accessed in Lua and has a more technical nature. If the reader is only interested in using the module \texttt{nd} through its interface, one should feel free to skip to section \ref{sec:whatif}.
+
+Lua supports accessing and changing a function's environment through the function pair \texttt{getfenv}/\texttt{setfenv}. After retrieving the possibility's function environment, \texttt{nd.whatif} applies \texttt{typetools.proxy} (see section \ref{sec:metatables}) to protect it from changes without generating a possibly unnecessary deepcopy and uses the result as the possibility's new function environment. When the possibility returns, the original function environment is restored. Potential changes made by the possibility to its global environment only affect the current global environment.
+
+\begin{lstlisting}[language=lua, caption={Changing a function's environment.}, label=lst:fenv, name=lst:fenv]
+x = 5
+more = function ()
+	x = x + 1
+	return x
+end
+fenv = getfenv(more)
+print(fenv.x) -- prints 5
+setfenv(more, {x = 7})
+print(more()) -- prints 8
+\end{lstlisting}
+
+Accessing upvalues is a bit more tricky and requires the use of Lua's standard library \texttt{debug} since the required functionality reaches into metaprogramming territory. Since upvalues are local variables, whose bindings can potentially be overshadowed, they aren't accessed by their name but by their numerical index. The function \texttt{debug.upvalue} receives a function and an integer as arguments and returns the respective local name and upvalue, \texttt{debug.setupvalue} works likewise (receiving the new value as an additional parameter).
+
+\begin{lstlisting}[language=lua, caption={Setting a function's upvalue "from the outside".}, label=lst:upvalue, name=lst:upvalue]
+local x = 5
+more = function ()
+	x = x + 1
+	local x = x * 2
+	return x
+end
+print(more(), x) -- prints 12, 6
+debug.setupvalue(more, 1, 20)
+print(more(), x) -- prints 42, 21
+\end{lstlisting}
+
+As listing \ref{lst:upvalue} shows, the changes to a function's upvalues do not strictly concern the function but every part of the program that shares the respective lexical binding. Again, \texttt{nd.whatif} uses this mechanism to save all\footnote{The totoal number of upvalues of a function can be retrieved through the call \texttt{debug.getinfo(call, "u").nups}. See section 23.1 of \cite{Ierusalimschy2006} for more information.} upvalues before the execution of the possibility and write back these original values afterwards. However, \cite{Ierusalimschy2006} explicitly notes that using the \texttt{debug} library's functionality needed to access upvalues is "not efficient". Thus, it is recommended to turn off the local namespace preservation of \texttt{nd.whatif} wherever reasonable, as it is shown in the following section.
+
 \subsection{Asking \texttt{whatif}}
 \label{sec:whatif}
 
+To allow for a fine-tuned resource management and great flexibility, \texttt{nd.whatif} supports elaborate call patterns for many situations. In general, \texttt{nd.whatif} accepts two environments (as its second and third argument), whose bindings will be applied to the global or local namespace respectively before executing the possibility.
+
+ \begin{table}[h]
+ \caption{Call patterns of \texttt{nd.whatif}}
+ \begin{tabular}{l|p{300}}
+argument  & behavior\\
+\hline
+\texttt{false} & don't prevent changes in the respective namespace\\
+\texttt{true}, \texttt{\{\}} or \texttt{nil} & prevent changes in the respective namespace \\
+\texttt{\{...\}} & apply given bindings before execution and prevent any changes in the original namespace\\
+ \end{tabular}
+ \label{tab:whatif}
+ \end{table}
+
+\begin{lstlisting}[language=lua, caption={Example for the call patterns of \texttt{nd.whatif} (see table \ref{tab:whatif})}, label=lst:whatif, name=lst:whatif]
+require "nd"
+x = 5
+local y = 1
+more = function ()
+	x = x + y
+	return x
+end
+print((nd.whatif(more, true, false))) -- save computation time by not saving the upvalues (also print 6)
+nd.whatif(more, false, true)          -- allow access to global namespace
+print(x)                              -- print 6
+print((nd.whatif(more, {x=20}, {y=22}))) -- print 42
+nd.whatif(more, false, false)         -- elaborately call more()
+\end{lstlisting}
+
+Building on \texttt{nd.whatif}, one can implement arbitrary combinations of non-deterministic program execution. A premier example of this is the function \texttt{nd.orelse}, which takes an arbitrary number of function as its arguments and executes the first one that does not return \texttt{nil} (and returns that function's result). It does so by trying all given functions using \texttt{nd.whatif} and then incorporating the changes done by the first successful function to its global variables and upvalues into the further program flow.
 
 
-
+\begin{lstlisting}[language=lua, caption={Using \texttt{nd.orelse}.}, label=lst:orelse, name=lst:orelse]
+require "nd"
+x = 5
+test1 = function ()
+	x = 6
+	return nil
+end
+test2 = function ()
+	x = 7
+	return true
+end
+test3 = function ()
+	x = 8
+	return true
+end
+print(nd.orelse(test1, test2, test3)) -- prints true
+print(x)                              -- prints 7
+\end{lstlisting}

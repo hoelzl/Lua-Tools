@@ -21,6 +21,7 @@ function whatif(call, globalsetting, localsetting)
     localsetting = localsetting == true and {} or localsetting
     globalsetting = globalsetting or {}
     localsetting = localsetting or {}
+    local fenv = {}
     local globals = {}
     local locals = {}
     local upvalues = {}
@@ -37,7 +38,8 @@ function whatif(call, globalsetting, localsetting)
     end
     --save global namespace
     if saveglobal then
-        globals = tt.proxy(getfenv(call))
+        fenv = getfenv(call)
+        globals = tt.proxy(fenv)
         for name,value in pairs(globalsetting) do
             globals[name] = value
         end
@@ -45,6 +47,10 @@ function whatif(call, globalsetting, localsetting)
     end
     --evaluate call
     local result = call()
+    --restore old global namespace
+    if saveglobal then
+        setfenv(call, fenv)
+    end
     --retrieve new and restore old local namespace
     if savelocal then
         for i = 1,nups do
