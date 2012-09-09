@@ -6,10 +6,11 @@
 ------------------------------------------------------------------------------------------
 
 package.path = "../src/?.lua;"..(package.path or "")
-require "shared"
+remote = require "shared"
+require "onsite"
 require "shell"
 
-init("localhost")
+remote.init(onsite, "localhost")
 print(shell.help())
 print([[
   The prefixed number indicates the current coroutine. New ones are produced on the fly
@@ -30,4 +31,4 @@ while true do
 	end
 	current = current < max and current + 1 or 1
 end
-term()
+remote.term()

@@ -1,18 +1,31 @@
 -- test application for this under ../tests/distributed.lua
 -- usage ---------------------------------------------------------------------------------
 -- provides an interface for messaging across a network using the zmq (www.zeromq.org). --
--- DEFINES: init, term, local_(get|put|qry), remote_(get|put|qry), answer               --
+-- DEFINES: init, term, get, put, qry, answer                                           --
 ------------------------------------------------------------------------------------------
 
-require "zmq"
-require "serialize"
+local loadstring = loadstring
+local zmq = require "zmq"
+local serialize = require "serialize"
+local nd = require "nd"
+module(...)
 
-local context, srvport, cltport
+local trustpeers = true
 
-function init(srv, clt)
+local context, protocol, srvport, cltport
+
+function init(onsite, srv, clt)
+	context = zmq.init(1)
+	protocol = {
+		get = onsite.get,
+		qry = onsite.qry,
+		put = onsite.put,
+		ack = function (fact)
+			return fact
+		end
+	}
 	srvport = srv or "5555"
 	cltport = clt or srvport
-	context = zmq.init(1)
 end
 
 function term()
@@ -20,45 +33,7 @@ function term()
 end
 
 local function process(code)
-	local fget = get
-	local fqry = qry
-	local fput = put
-	local fack = ack
-	get = function (query)
-		return local_get(query)
-	end
-	qry = function (query)
-		return local_qry(query)
-	end
-	put = function (fact)
-		return local_put(fact)
-	end
-	ack = function (fact)
-		return fact
-	end
-	local result = loadstring(code)()
-	get = fget
-	qry = fqry
-	put = fput
-	ack = fack
-	return result
-end
-
-function local_get(query)
-	local result = "response to "..tostring(query)
-	print("local get of ", serialize.data(query), " returns ", result)
-	return result
-end
-
-function local_qry(query)
-	local result = "response to "..tostring(query)
-	print("local qry of ", serialize.data(query), " returns ", result)
-	return result
-end
-
-function local_put(fact)
-	print("local put of ", (serialize.data(fact)))
-	return fact
+	return (nd.whatif(loadstring(code), protocol, not trustpeers))
 end
 
 local function remote_action(name, server, param)
@@ -66,20 +41,19 @@ local function remote_action(name, server, param)
 	socket:connect("tcp://"..server..":"..srvport)
 	socket:send(serialize.command(name, param))
 	local reply = socket:recv()
-	print("  server responded:", reply)
 	socket:close()
 	return process(reply)
 end
 
-function remote_get(server, query)
+function get(server, query)
 	return remote_action("get", server, query)
 end
 
-function remote_qry(server, query)
+function qry(server, query)
 	return remote_action("qry", server, query)
 end
 
-function remote_put(server, fact)
+function put(server, fact)
 	return remote_action("put", server, fact)
 end
 

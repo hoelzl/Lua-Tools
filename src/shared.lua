@@ -1,12 +1,25 @@
 -- test application for this under ../tests/shared.lua
 -- usage ---------------------------------------------------------------------------------
 -- provides an interface for messaging within a LUA state using the global "queues".    --
--- DEFINES: init, term, local_(get|put|qry), remote_(get|put|qry), answer, stop         --
+-- DEFINES: init, term, get, put, qry, answer, stop                                     --
 ------------------------------------------------------------------------------------------
 
-local queues, pending
+local pairs = pairs
+local coroutine = coroutine
+module(...)
 
-function init(me, qs)
+
+local protocol, queues, pending
+
+function init(onsite, me, qs)
+	protocol = {
+		get = onsite.get,
+		qry = onsite.qry,
+		put = onsite.out,
+		ack = function (fact)
+			return fact
+		end
+	}
 	me = me or "localhost"
 	queues = qs or {}
 	queues[me] = queues[me] or {}
@@ -18,38 +31,7 @@ function term()
 end
 
 local function process(message)
-	local commands = {
-		get = function (query)
-			return local_get(query)
-		end,
-		qry = function (query)
-			return local_qry(query)
-		end,
-		put = function (fact)
-			return local_put(fact)
-		end,
-		ack = function (fact)
-			return fact
-		end
-	}
-	return (commands[message.command])(message.content)
-end
-
-function local_get(query)
-	local result = "response to "..tostring(query)
-	print("local get of ", query, " returns ", result)
-	return result
-end
-
-function local_qry(query)
-	local result = "response to "..tostring(query)
-	print("local qry of ", query, " returns ", result)
-	return result
-end
-
-function local_put(fact)
-	print("local put of ", fact)
-	return fact
+	return (protocol[message.command])(message.content)
 end
 
 local function tablematch(table, constraints)
@@ -90,15 +72,15 @@ local function remote_action(name, server, param)
 	return process(dequeue(pending, {command="ack", cause=message}))
 end
 
-function remote_get(server, query)
+function get(server, query)
 	return remote_action("get", server, query)
 end
 
-function remote_qry(server, query)
+function qry(server, query)
 	return remote_action("qry", server, query)
 end
 
-function remote_put(server, fact)
+function put(server, fact)
 	return remote_action("put", server, fact)
 end
 

@@ -55,7 +55,7 @@ function proxy(target)
 		local proxymetatable = {
 			__index = function(table, key)
                 table[key] = deepcopy(target[key])
-				return table[key]
+				return target[key] and table[key]
 			end
 		}
 		setmetatable(proxytable, proxymetatable)

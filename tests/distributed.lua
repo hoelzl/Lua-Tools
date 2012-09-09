@@ -5,10 +5,11 @@
 ------------------------------------------------------------------------------------------
 
 package.path = "../src/?.lua;"..(package.path or "")
-require "distributed"
+remote = require "distributed"
+require "onsite"
 require "shell"
 
-init(arg[1], arg[2])
+remote.init(onsite, arg[1], arg[2])
 print(shell.help())
 shell.run(arg[3] or "localhost")
-term()
+remote.term()

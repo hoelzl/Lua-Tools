@@ -5,7 +5,9 @@
 ------------------------------------------------------------------------------------------
 
 module(..., package.seeall)
-
+local remote_get = function (...) return remote.get(unpack(arg)) end
+local remote_put = function (...) return remote.put(unpack(arg)) end
+local remote_qry = function (...) return remote.qry(unpack(arg)) end
 local id = function (x) return x end
 local ignore = function () return nil end
 local interpret = function (x) return loadstring("return "..x)() end
@@ -52,12 +54,12 @@ local commands = {
 	},
 	stop = {
 		preprocess = id,
-		process    = stop or function () return "not supported" end,
+		process    = remote.stop or function () return "not supported" end,
 		help       = "If working with coroutines, do a manual yield."
 	},
 	answer = {     --causes program to process pending messages
 		preprocess = id,
-		process    = function() return answer() end,
+		process    = function() return remote.answer() end,
 		help       = "Answer to pending message."
 	},
 	quit = {       --quit the program
