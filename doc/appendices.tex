@@ -1,12 +1,19 @@
 \begin{appendices}
 
-	\chapter{Test Programs}
-	
-	\section{Performance measurement for \texttt{oo}'s objects}
-	\label{sec:app:ooperformance}
-	
-	The measurements listed in table \ref{tab:performance} in section \ref{sec:oo:performance} were made using the program from listing \ref{lst:ooperformance} interpreted by Lua 5.1.5 under OS X 10.8.1. 
-	
+\chapter{Modules \texttt{shell} and \texttt{onsite}: Manual messaging}
+\label{shell}
+
+\section{Module \texttt{onsite}: Trivial implementation of the request interface}
+
+\section{Module \texttt{shell}: Command line interface}
+
+\chapter{Test Programs}
+
+\section{Performance measurement for \texttt{oo}'s objects}
+\label{sec:app:ooperformance}
+
+The measurements listed in table \ref{tab:performance} in section \ref{sec:oo:performance} were made using the program from listing \ref{lst:ooperformance} interpreted by Lua 5.1.5 under OS X 10.8.1. 
+
 \begin{lstlisting}[language=lua, caption={Test program for memory measurement of different object types}, label=lst:ooperformance, name=lst:ooperformance]
 require "oo"
 
@@ -39,9 +46,11 @@ if arg[4] == "inf" then
 end
 \end{lstlisting}
 	
-	The first argument to the program sets the object type to be used for the test. The second and third arguments define the number of objects with which multiple arrays are filled.\footnote{It is necessary to keep a reference to all the created objects since Lua features automatic garbage collection.} The fourth argument allows to pause the program's execution for a while (\texttt{"wait"}) or indefinitely (\texttt{"inf"}) in order to ease using looking up the used memory manually.
-	
-	
-	\chapter{Documentation}
+The first argument to the program sets the object type to be used for the test. The second and third arguments define the number of objects with which multiple arrays are filled.\footnote{It is necessary to keep a reference to all the created objects since Lua features automatic garbage collection.} The fourth argument allows to pause the program's execution for a while (\texttt{"wait"}) or indefinitely (\texttt{"inf"}) in order to ease using looking up the used memory manually.
+
+\section{Performance measurement for \texttt{evoltion}'s search algorithm}
+
+
+\chapter{Documentation}
 
 \end{appendices}

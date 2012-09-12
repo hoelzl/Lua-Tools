@@ -8,6 +8,7 @@ The three modules discussed in this chapter were mainly created in order to prov
 Understanding these auxiliary modules is not necessary in order to use the more high-level modules that build upon them: In most cases, the functionality provided by these modules might as well fit into the standard library and the functions provided by these modules work like an experienced programmer would expect them to. If that's not the case, they will be discussed shortly in the chapter of the modules they are used in.
 
 \section{Module \texttt{serialize}: Serializing arbitrary data structures}
+\label{sec:tools:serialize}
 
 \subsection{The problem of data serialization}
 \label{sec:tools:serialize:problem}
@@ -28,7 +29,7 @@ print(f(5))                      -- prints 9
 TODO: Adjust actual function serialize.command to accept lists of parameters
 \end{comment}
 
-The function \texttt{serialize.data} returns the serialization of the given parameter as a string. \texttt{serialize.command} allows to serialize a statement by passing it both a function name and a list of parameters. The generated code will then return the result of calling the given function with the given arguments. This is especially useful when transmitting programs or program parts between systems.\footnote{This is done by the script \texttt{dstributed} in chapter \ref{chap:distributed}.}
+The function \texttt{serialize.data} returns the serialization of the given parameter as a string. \texttt{serialize.command} allows to serialize a statement by passing it both a function name and a list of parameters. The generated code will then return the result of calling the given function with the given arguments. This is especially useful when transmitting programs or program parts between systems.\footnote{This is done by the script \texttt{distributed} in section \ref{sec:messaging:distributed}.}
 
 \begin{lstlisting}[language=lua, caption={Using \texttt{serialize.data} and \texttt{serialize.command}}, label=lst:serializedatacommand, name=lst:serializedatacommand]
 require "serialize"
@@ -55,7 +56,7 @@ Note that \texttt{serialize.print} is a shortcut that serializes all given param
 \subsection{Algorithm}
 \label{sec:tools:algorithm}
 
-Both \texttt{serialize.data} and \serialize{serialize.command} use the internal function \texttt{serialize} (of the module \texttt{serialize}). This section will show briefly how it works. Users of the module should not be concerned about it and this section is merely meant as an in-depth explanation for programmers that want to extend \texttt{serialize}.
+Both \texttt{serialize.data} and \texttt{serialize.command} use the internal function \texttt{serialize} (of the module \texttt{serialize}). This section will show briefly how it works. Users of the module should not be concerned about it and this section is merely meant as an in-depth explanation for programmers that want to extend \texttt{serialize}.
 
 The algorithm used in \texttt{serialize} closely resembles the serialization algorithm given in section 12.2 of \cite{Ierusalimschy2006}, though it does not require a name for the initial data structure because it serializes to Lua chunks (using the \texttt{return} key word as discussed in section \ref{sec:tools:serialize:problem}).\footnote{The version presented in \cite{Ierusalimschy2006} is targeted at persistance and thus aims to restore the global namespace from the serialized data. The module \texttt{serialize} opts for message passing and thus aims to keep the global namespace unaffected.} To keep track of the current progress of serialization, the function \texttt{serialize} needs three accumulator parameters that are passed on to recursive calls of the function, which are necessary iff it is passed a table. When serializing a data structure that is not part of larger one, these parameters can be left out\footnote{It is a common Lua idiom to include them in one function which uses the \texttt{or} operator to set these parameters to their default values if necessary, as it is done in listing \ref{lst:serialize}.}, otherwise they carry a lookup table of all currently serialized data structures (\texttt{saved}), which allows the algorithm to fill in their already-assigned name and avoid running into an infinite loop on self-containing tables, the code for all current declarations (\texttt{prologue}) and the \texttt{index} that is used to generate new, unique variable names.
 
@@ -139,7 +140,7 @@ Note that \texttt{typetools.proxy} is not a transparent replacement for a "true"
 
 \subsection{More table hooks}
 
-The main problem with table virtualization in the current Lua version\footnote{This paper is based on Lua 5.1.5.} is the lack of a hook to catch Lua's built-in iteration function \texttt{pairs} and \texttt{ipairs}. The module \texttt{typetools} provides a replacement for Lua's standard function \texttt{pairs} that explicitly calls the (conventional) metamethod \texttt{"\_\_pairs"} before performing the same task as the built-in \texttt{pairs} function.\footnote{The module \texttt{typetools} follows a suggestion in the article \emp{GeneralizedPairsAndIpairs} of \ref{LuaUsersWiki2006} that when a \texttt{"\_\_pairs"} metamethod is established, it should be used to differentiate between an unordered iteration (\texttt{pairs}) and an ordered one (\texttt{ipairs}) instead of having the user of the table make that decision.} Thus, \texttt{typetools.pairs} can overcome the table virtualization issue, but in order to ensure compatibility, it needs to be used in \emph{every} table iteration in a program, which is impractical in most cases.
+The main problem with table virtualization in the current Lua version\footnote{This paper is based on Lua 5.1.5.} is the lack of a hook to catch Lua's built-in iteration function \texttt{pairs} and \texttt{ipairs}. The module \texttt{typetools} provides a replacement for Lua's standard function \texttt{pairs} that explicitly calls the (conventional) metamethod \texttt{"\_\_pairs"} before performing the same task as the built-in \texttt{pairs} function.\footnote{The module \texttt{typetools} follows a suggestion in the article \emph{GeneralizedPairsAndIpairs} of \ref{LuaUsersWiki2006} that when a \texttt{"\_\_pairs"} metamethod is established, it should be used to differentiate between an unordered iteration (\texttt{pairs}) and an ordered one (\texttt{ipairs}) instead of having the user of the table make that decision.} Thus, \texttt{typetools.pairs} can overcome the table virtualization issue, but in order to ensure compatibility, it needs to be used in \emph{every} table iteration in a program, which is impractical in most cases.
 
 The function \texttt{typetools.proxy} shown in listing \ref{lst:proxy} above calls (within the same namespace) the function \texttt{typetools.deepcopy}, which basically works as expected and thus fills a hole in Lua's standard library. The module \texttt{typetools} also provides its pendant, \texttt{typetools.shallowcopy}. However, \texttt{typetools.deepcopy} refers to its argument's metatable, too: Before performing an expensive deep copy algorithm, the function checks for the metamethod \texttt{"\_\_copy"} and (if it is present) returns its result. Note that the metamethod \texttt{"\_\_copy"} is not used or defined by the Lua interpreter. Just by using a certain entry of the metatable, the programmer can implicitly introduce new metamethods as it done by \texttt{typetools}. The deep copy algorithm can thus provide a special form of \emph{polymorphism} as it will work differently on different tables.\footnote{The objects defined by the module \texttt{oo} use this behavior of \texttt{typetools.deepcopy} to have it call their own copy method \texttt{clone}. See section \ref{sec:oo:copying} for more on the method \texttt{oo.object:clone}.}
 
@@ -194,16 +195,20 @@ debug.setupvalue(more, 1, 20)
 print(more(), x) -- prints 42, 21
 \end{lstlisting}
 
-As listing \ref{lst:upvalue} shows, the changes to a function's upvalues do not strictly concern the function but every part of the program that shares the respective lexical binding. Again, \texttt{nd.whatif} uses this mechanism to save all\footnote{The totoal number of upvalues of a function can be retrieved through the call \texttt{debug.getinfo(call, "u").nups}. See section 23.1 of \cite{Ierusalimschy2006} for more information.} upvalues before the execution of the possibility and write back these original values afterwards. However, \cite{Ierusalimschy2006} explicitly notes that using the \texttt{debug} library's functionality needed to access upvalues is "not efficient". Thus, it is recommended to turn off the local namespace preservation of \texttt{nd.whatif} wherever reasonable, as it is shown in the following section.
+As listing \ref{lst:upvalue} shows, the changes to a function's upvalues do not strictly concern the function but every part of the program that shares the respective lexical binding. Again, \texttt{nd.whatif} uses this mechanism to save all\footnote{The total number of upvalues of a function can be retrieved through the call \texttt{debug.getinfo(call, "u").nups}. See section 23.1 of \cite{Ierusalimschy2006} for more information.} upvalues before the execution of the possibility and write back these original values afterwards. However, \cite{Ierusalimschy2006} explicitly notes that using the \texttt{debug} library's functionality needed to access upvalues is "not efficient". Thus, it is recommended to turn off the local namespace preservation of \texttt{nd.whatif} wherever reasonable, as it is shown in the following section.
 
 \subsection{Asking \texttt{whatif}}
 \label{sec:whatif}
 
 To allow for a fine-tuned resource management and great flexibility, \texttt{nd.whatif} supports elaborate call patterns for many situations. In general, \texttt{nd.whatif} accepts two environments (as its second and third argument), whose bindings will be applied to the global or local namespace respectively before executing the possibility.
 
+\begin{comment}
+TODO: update nd.whatif to include an option (_true_ or nil?) to ERADICATE said namespace and execute in plain environment.
+\end{comment}
+
  \begin{table}[h]
  \caption{Call patterns of \texttt{nd.whatif}}
- \begin{tabular}{l|p{300}}
+ \begin{tabular}{l|p{300pt}}
 argument  & behavior\\
 \hline
 \texttt{false} & don't prevent changes in the respective namespace\\
@@ -249,3 +254,7 @@ end
 print(nd.orelse(test1, test2, test3)) -- prints true
 print(x)                              -- prints 7
 \end{lstlisting}
+
+\begin{comment}
+TODO: Include reference to the usage of nd.whatif in distributed
+\end{comment}

@@ -96,6 +96,8 @@ point2 = point:new(4, 2)
 
 As shown here, \texttt{oo.instantiate} returns a method that assigns its arguments to the properties whose names are passed to \texttt{oo.instantiate}, matching them by the order they appear in. Arguments at the end that are left out when calling \texttt{new} keep their default value assigned in the object definition (instead of being set to \texttt{nil}).
 
+\subsection{Method shortcuts}
+
 \subsection{Copying objects}
 \label{sec:oo:copying}
 \texttt{oo.object} provides a method \texttt{clone()} which is a shortcut for \texttt{oo.object:intend\{\}} and clones the object it is called on. By default, this results in a shallow copy of the object's properties. However, there are cases when a copied object usually shouldn't share referential data structures with the original.\footnote{Lua's primitive data types (including strings) are immutable. Thus, the difference between a shallow and a deep copy only shows when copying tables.} This scenario can be taken care of by overwriting the \texttt{clone} method usually inherited from \texttt{oo.object}:

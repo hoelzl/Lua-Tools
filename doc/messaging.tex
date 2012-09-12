@@ -1,0 +1,172 @@
+\chapter{Modules \texttt{shared} and \texttt{distributed}: Message communication}
+
+Both the modules \texttt{shared} and \texttt{distributed} individually provide the technical foundation for message-based communication between different service-components.\footnote{This paper follows the definitions of the ASCENS project (see \cite{ASCENS}), specifically \cite{AscensD41} and \cite{HoelzlWirsing2011}, which are usually the broadest common definition of a given term.} Following \cite{AscensD11}, their communication revolves around three different basic request, called \texttt{qry}, \texttt{get} and \texttt{put}, and their responses. However, \texttt{shared} and \texttt{distributed} only manage the message transfer and and delegate processing them to a module they receive as  a parameter. For testing purposes, the module \texttt{onsite} provides a trivial implementation of \texttt{qry}, \texttt{get} and \texttt{put}.\footnote{See appendix \ref{shell} for example programs using \texttt{shared} and \texttt{distributed} respectively.}
+
+As both \texttt{shared} and \texttt{distributed} export the same set of functions, they are mostly interchangeable to users\footnote{Their respective \texttt{init} functions expect different parameters, but after initialisation, their interfaces are identical.} and provide an abstraction on communication between service components.
+
+\section{Module \texttt{shared}: Messaging within one process}
+\label{sec:messages:distributed}
+
+\subsection{Initialisation of the global message queue}
+
+The module \texttt{shared} allows message communication within the same process by accessing the same message queue in the memory. The main use case is simulators for robotic agents that run multiple instances of the agent's controlling software on the same machine. As Lua is incapable of directly accessing shared memory nor multi-threaded programming, the environment is in charge of equipping multiple instances of the Lua interpreter with a shared memory segment. This can be done by resorting to Lua's C interface and thus manipulating the environment of the Lua interpreter "manually".\footnote{See the chapters of part IV in \cite{Ierusalimschy2006} for a guide to Lua's C API.} However, this is beyond the scope of this work. For now, we will resort to passing messages around within one instance of the Lua interpreter, as trivial as that is. Also, this section is to be regarded as an introduction to the interface used by \texttt{distributed} in \ref{sec:messaging:distributed} as well.
+
+\pagebreak
+
+Before being able to use the messaging functionalities of \texttt{shared}, the user needs to call \texttt{shared.init}.\footnote{The user is also expected to call \texttt{shared.term} when messaging is no longer needed. Although as of now, this call does nothing, it is strictly necessary to for the module \texttt{distributed} and thus highly recommended for compatability reasons.} As its first argument it expects the module responsible for local, \emph{on-site} communication, i.e. generating the answers to the received queries. Its second argument is an identifier (for example an index or a string) for the service component that the message communication is currently initiated for. This identifier needs to be unique across the ensemble of service components. Finally, its third argument is the shared message queue of all service components, which needs to be a table value.\footnote{Note that \texttt{shared} calls \texttt{pairs} and utilizes the length operator, making emulating said table impossible in the Lua version this paper is base on. See \ref{sec:metatables} for more information on table virtualization.} The shared message queue assigns an individual message queue to each service component (represented by its identifier). It is necessary for every single service component to have access to the message queues of all other service components in the ensemble in order to deliver messages.
+
+\begin{comment}
+Include crossreference to POEM
+\end{comment}
+
+\subsection{Lua's coroutines}
+
+Lua supports a very basic form of multitasking based on \emph{coroutines}\footnote{See also chapter 9 of \cite{Ierusalimschy2006}.}, which is used to emulate parallel communication in the module \texttt{shared}. A coroutine can be created by calling Lua's \texttt{coroutine.create} and passing it a function. Calling \texttt{coroutine.resume} on that call's return value causes the respective coroutine to be executed.
+
+Inside a coroutine, however, one can call \texttt{coroutine.yield} to pause that coroutine's execution. Its encompassing \texttt{resume} call then returns a (boolean) success value, marking if the coroutine's execution stopped regurarly (and not because of an error), and any arguments passed to \texttt{coroutine.yield}.\footnote{This communication works both ways: Additional arguments passed to a \texttt{coroutine.resume} are returned by the corresponding \texttt{coroutine.yield}. This mechanism is not used in the module \texttt{shared}, though.}
+
+\begin{lstlisting}[language=lua, caption={Using coroutines.}, label=lst:coroutine, name=lst:coroutine]
+function counter()
+	for i=1,2 do
+		coroutine.yield(i)
+	end
+end
+c = coroutine.create(counter)
+print(coroutine.status(c))              --prints "suspended"
+success, current = coroutine.resume(c)
+print(success)                          --prints true
+print(current)                          --prints 1
+success, current = coroutine.resume(c)
+print(current)                          --prints 2
+print(coroutine.status(c))              --prints "suspended"
+coroutine.resume(c)
+print(coroutine.status(c))              --prints "dead"
+\end{lstlisting}
+
+As shown in listing \ref{lst:coroutine}, the function \texttt{coroutine.status} can be used to detect the current status of a coroutine: A \texttt{"dead"} coroutine has finished its original function, a \texttt{"suspended"} one merely called \texttt{yield} and the status \texttt{"running"} can only be observed from inside the coroutine's function.
+
+\subsection{Sending messages}
+\label{sec:messaging:sending}
+
+A message is sent by calling \texttt{shared.qry}, \texttt{shared.get} or \texttt{shared.put}, which delegate the call to the local function \texttt{action} by adding their own name (\texttt{"qry"}, e.g.) as the calls first parameter while passing on the others. The function \texttt{action} constructs a message data structure as shown in the (local) definition of \texttt{message} in listing \ref{lst:sharedaction}: Its fields save the message command (\texttt{"qry"}, e.g.), the message content and the queue where the answer should be posted to. Note that \texttt{pending} is a module-wide variable pointing to the message queue of the current service component; \texttt{enqueue} is defined within the same scope and works as expected.
+
+\begin{lstlisting}[language=lua, caption={The local function \texttt{action} of the module \texttt{shared}}, label=lst:sharedaction, name=lst:sharedaction]
+local function action(name, server, param)
+	local message = {command=name, content=param, re=pending}
+	enqueue(queues[server], message)
+	coroutine.yield()
+	return process(dequeue(pending, {command="ack", cause=message}))
+end
+\end{lstlisting}
+
+After having appended the new message to the destination service component's message queue, the coroutine needs to pause execution to give the rest of the program a chance to answer the message. It is then expected\footnote{See appendix \ref{shell} for example programs that use \texttt{shared}.} to resume the coroutine so that \texttt{shared}'s local function \texttt{process} can react to the response, which it attempts to find in its own message queue \texttt{pending}.
+
+The second argument to \texttt{shared}'s local function \texttt{dequeue} is a table pattern which all messages in the queue are matched against. The function \texttt{dequeue} is to return the first\footnote{Since the table pattern contains a reference to the original request and the message tables are generated anew for each request, there should only be one message to fit this pattern anyway.} message in the queue that fits the pattern.\footnote{The module \texttt{shared} only uses one message queue per service component, which therfore contains both genuine requests and responses to the service component's own requests. That allows for one universal protocol for both ends of the communication , which is discussed in following section \ref{sec:messaging:answering}.} In this case, it expects the message command \texttt{"ack"}, which is used for responses, and allows for a message cause field, which should contain the original message. Note that \texttt{"ack"} messages may also contain a message content field, which contains the actual response.
+
+\subsection{Answering messages}
+\label{sec:messaging:answering}
+
+As Lua's multitasking capabilities do not allow for effective polling, the module \texttt{shared} needs to be urged to answer a pending message by its user. This can be done by calling \texttt{shared.answer}, which answers the oldest pending message, if any.
+
+\begin{lstlisting}[language=lua, caption={The function \texttt{answer} of the module \texttt{shared}}, label=lst:sharedanswer, name=lst:sharedanswer]
+function answer()
+	local message = dequeue(pending)
+	if message then
+		if message.command == "ack" then
+			answer()
+			enqueue(pending, message) --put ack back
+		else
+			enqueue(message.re, {command="ack", content=process(message), cause=message})
+		end
+	end
+	return true
+end
+\end{lstlisting}
+
+As shown in listing \ref{lst:sharedanswer}, answering a message means removing it from the service component's message queue and passing it as a parameter to the local function \texttt{process}. Then, a message with the command \texttt{"ack"} is written back to the sender's message queue, received through the respective message field \texttt{"re"}.
+
+The local function \texttt{process} calls the respective on-site message handlers passed to \texttt{shared.init} (as its first argument) for messages with the commands \texttt{"qry"}, \texttt{"get"} and \texttt{"put"}, or an identity function for \texttt{"ack"} messages.
+
+
+\section{Module \texttt{distributed}: Messaging across the network}
+\label{sec:messaging:distributed}
+
+\subsection{Initialisation}
+
+The module \texttt{distributed} allows message communication over the network, using the \O MQ framework,\footnote{See \cite{ZeroMQ} for the general guide to \O MQ. The Lua bindings used here can be found at \cite{ZeroMQBindings}.} which will be discussed in following section \ref{sec:messages:zeromq}. Again, the only concern of the module \texttt{distributed} is transferring the messages needed to implement the protocol described in \cite{AscensD11}, meaningfully processing them is left to separate modules, whose job is called "on-site communication" in this chapter and which will not be covered in this paper. Their main requirement is to provide an implementation of the three primitive requests \texttt{"qry"}, \texttt{"get"} and \texttt{"put"}. 
+
+Such a module for on-site communication needs to be passed as the first argument to \texttt{distributed.init}, which sets up the module so that messaging is possible. This function may also be passed two additional parameters, defining the port numbers the service component should use to (1) send outgoing messages to and (2) listen to incoming messages. If not set, these ports are set to a fixed default number. In most cases, it is recommended to only provide one additional port number as an argument, which is then automatically used for both sides of the communication.
+
+\subsection{The \O MQ framework}
+\label{sec:messages:zeromq}
+
+The function \texttt{distributed.init} calls \texttt{zmq.init}\footnote{It receives the number of threads to be used by \O MQ as a parameter, which will be \texttt{1} in \texttt{dstributed}.} to receive a \O MQ context object, which will be used throughout the whole module. Its main purpose is to create communication sockets via its \texttt{socket} method. The context is terminated again by \texttt{distributed.term}. Although \O MQ provides very flexible and elaborate patterns of network communication, only the most basic techniques are necessary for the implementation of \texttt{distributed}, i.e. a simple request-reply pattern.
+
+\begin{lstlisting}[language=lua, caption={Example of the \emph{request} side of a communication via \O MQ}, label=lst:requester, name=lst:requester]
+require "zmq"
+
+context = zmq.init(1)
+socket  = context:socket(zmq.REQ)
+socket:connect("tcp://localhost:55555")
+socket:send("a message")
+reply   = socket:recv()
+print(reply) --prints "a reply to a message" in the right environment
+socket:close()
+context:term()
+\end{lstlisting}
+
+\begin{lstlisting}[language=lua, caption={Example of the \emph{reply} side of a communication via \O MQ}, label=lst:replier, name=lst:repler]
+require "zmq"
+
+context = zmq.init(1)
+socket  = context:socket(zmq.REP)
+socket:bind("tcp://*:55555")
+request = socket:recv()
+socket:send("a reply to "..request)
+socket:close()
+context:term()
+\end{lstlisting}
+
+The scripts in the listings \ref{lst:requester} and \ref{lst:replier} are meant to be run alongside each other on the same machine (as "localhost" is hard-coded as the server\footnote{The likewise hard-coded port number 55555 lies within the space of unregistered ports. That's also the port \texttt{distributed} uses if no other port is passed to \texttt{distributed.init}.}). Depending on the constant passed as an argument to the context's \texttt{socket} method, \O MQ configures the created socket accordingly. After being connected/bound, the socket can be used to send or receive data by calling the appropriate method.
+
+\subsection{Sending messages}
+
+Just like \texttt{shared} (see section \ref{sec:messaging:sending}), the module \texttt{distributed} uses a local method called \texttt{action} to abstract from the three different kinds of requests. For each request, a new ephemeral socket of the type \texttt{zmq.REQ} is created.\footnote{This may prove ineffecient for heavy commuciation. However, it obviously minimizes the number of sockets open at the same time. When needed, a lookup list of open sockets is trivial to implement.}
+
+\begin{lstlisting}[language=lua, caption={The local function \texttt{action} of the module \texttt{distributed}}, label=lst:distributedaction, name=lst:distributedaction]
+local function action(name, server, param)
+	local socket = context:socket(zmq.REQ)
+	socket:connect("tcp://"..server..":"..srvport) -- srvport is set by distributed.init
+	socket:send(serialize.command(name, param))
+	local reply = socket:recv()
+	socket:close()
+	return process(reply)
+end
+\end{lstlisting}
+
+The requests are sent as ASCII data, using \texttt{serialize.command} (see section \ref{sec:tools:serialize}) to generate a chunk of Lua code that rebuilds an identical data structure to the one passed as its second argument and returns the result of calling a function with the name passed as its first argument on said data structure. This way, all the local function \texttt{process} needs to do is to execute the received chunk of Lua code\footnote{Since Lua is an interpreted language, this is trivial using the function \texttt{loadstring}. The typical approach of persisting data structures by serializing them to Lua code and then executing that code is described in section 12.1 of \cite{Ierusalimschy2006}.} in an environment that provides meaningful values for globals \texttt{"qry"}, \texttt{"get"}, \texttt{"put"} and \texttt{"ack"} since these are the values passed as the first parameter to \texttt{serialize.command}. For the first three, these values are acquired from the on-site communication module, while \texttt{"ack"} is just a trivial function that returns its parameter since there is no need for any processing on the results that are transported in an \texttt{"ack"} message. Using the function \texttt{nd.whatif} (see section \ref{sec:whatif}), adjusting the global environment that way is trivial and even the local environment can be preserved from changes caused by the executed code.\footnote{This behavior can be configured in the header of the module \texttt{distributed}. Note that even though access to the global environment is restricted, this kind of communication is only advised in a trusted environment!}
+
+\subsection{Answering messages}
+
+The function \texttt{distributed.answer} basically follows the same pattern as listing \ref{lst:replier}, except that it call the local function \texttt{process} on the received message to execute it and packs the result into a string using \texttt{serialize.command}. It is, however, necessary for \texttt{distributed.answer} to return immediately, while the code from listing \ref{lst:replier} waits indefinitely for a message to arrive through the socket, as this is the standard behavior of the sockets' method \texttt{recv}. This can be changed by passing the constant \texttt{zmq.NOBLOCK} to the \texttt{recv} method.
+
+\begin{lstlisting}[language=lua, caption={The function \texttt{answer} of the module \texttt{distributed}}, label=lst:distributedanswer, name=lst:distributedanswer]
+function answer(tries)
+	tries = tries or recvtries
+	local socket = context:socket(zmq.REP)
+	socket:bind("tcp://*:"..cltport) --cltport is set by distributed.init
+	local request = nil
+	local i = 0
+	while not request and i < tries do
+		request = socket:recv(zmq.NOBLOCK)
+		i = i + 1
+	end
+	if request then
+	    socket:send(serialize.command("ack", process(request)))
+	end
+	socket:close()
+	return true
+end
+\end{lstlisting}
+
+While a non-blocking receive is sure to return immediately, it is not sure to actually return an incoming message, even if that message has already arrived. To not urge the user of \texttt{distributed} to manually manage polling, \texttt{distributed.answer} automatically tries to call \texttt{recv} multiple times.\footnote{The value of the module-local variable \texttt{recvtries} is defined in the header of the module.}

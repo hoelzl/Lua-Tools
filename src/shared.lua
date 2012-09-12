@@ -65,7 +65,7 @@ local function dequeue(queue, constraints)
 	return result
 end
 
-local function remote_action(name, server, param)
+local function action(name, server, param)
 	local message = {command=name, content=param, re=pending}
 	enqueue(queues[server], message)
 	coroutine.yield() --wait for answer
@@ -73,15 +73,15 @@ local function remote_action(name, server, param)
 end
 
 function get(server, query)
-	return remote_action("get", server, query)
+	return action("get", server, query)
 end
 
 function qry(server, query)
-	return remote_action("qry", server, query)
+	return action("qry", server, query)
 end
 
 function put(server, fact)
-	return remote_action("put", server, fact)
+	return action("put", server, fact)
 end
 
 function stop()
