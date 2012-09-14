@@ -59,7 +59,7 @@ individual = oo.object:intend{
 population = oo.object:intend{
 
 	elite = oo.dynamic(nil),
-	count = oo.dynamic(0),
+	count = 0,
 	domains = oo.dynamic{},
 	individuals = oo.dynamic{},
 	environment = oo.dynamic(nil),

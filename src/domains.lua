@@ -5,9 +5,28 @@
 ------------------------------------------------------------------------------------------
 
 local RNG = RNG or math.random
+local unpack = unpack
 local math = math
 local oo = require "oo"
 module(...)
+
+local justdomain = oo.object:intend{
+    value = nil,
+    new = oo.public (oo.instantiate("value")),
+    start = oo.public (function (self)
+        return self.value
+    end),
+    step = oo.public (function (self)
+        return self.value
+    end),
+    combine = oo.public (function (self)
+        return self.value
+    end)
+}
+
+function just(...)
+    return justdomain:new(unpack(arg))
+end
 
 local naturaldomain = oo.object:intend{
     min = 0,
@@ -31,8 +50,8 @@ local naturaldomain = oo.object:intend{
     end),
 }
 
-function natural(min, max, stepsize)
-    return naturaldomain:new(min, max, stepsize)
+function natural(...)
+    return naturaldomain:new(unpack(arg))
 end
 
 local floatdomain = oo.object:intend{
@@ -66,24 +85,36 @@ local floatdomain = oo.object:intend{
     end)
 }
 
-function float(min, max, deviation)
-    return floatdomain:new(min, max, deviation)
+function float(...)
+    return floatdomain:new(unpack(arg))
 end
 
-local justdomain = oo.object:intend{
-    value = nil,
-    new = oo.public (oo.instantiate("value")),
+--[[-- experimental incomplete code
+local placementdomain = oo.object:intend{
+    fields = 1,
+    min = 0,
+    max = 1,
+    mark = true,
+    empty = false,
+    new = oo.public (oo.instantiate("fields", "min", "max", "mark", "empty")),
     start = oo.public (function (self)
-        return self.value
+        local placement = {}
+        for i=1,self.fields do
+            placement[i] = self.empty
+        end
+        local markers = RNG(self.min, self.max)
+        local placed = 0
+        while placed < markers do
+            local pos = RNG(1, self.fields)
+            if not (placement[pos] == self.mark)
+                placement[pos] = self.mark
+                placed = placed + 1
+            end
+        end
+        return placement
     end),
-    step = oo.public (function (self)
-        return self.value
-    end),
-    combine = oo.public (function (self)
-        return self.value
+    step = oo.public (function (self, origin)
+    
     end)
 }
-
-function just(value)
-    return justdomain:new(value)
-end
+--]]

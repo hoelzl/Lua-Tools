@@ -39,7 +39,7 @@ local function tablematch(table, constraints)
 		return true
 	end
 	for key,val in pairs(constraints) do
-		if not table[key] == val then
+		if not (table[key] == val) then
 			return false
 		end
 	end

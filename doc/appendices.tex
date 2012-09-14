@@ -5,6 +5,34 @@
 
 \section{Module \texttt{onsite}: Trivial implementation of the request interface}
 
+There is not much to say about the module \texttt{onsite}. It provides a trivial implementation of the request interface needed by the modules \texttt{shared} and \texttt{distributed} while printing out notes on what it does. It is part of this software because without any implementation of this function, \texttt{shared} and \texttt{distributed} could not even be tested.
+
+It is also a good showcase of the modularization technique used in all of the modules: Even though Lua provides the function \texttt{module} that creates a a separate namespace for the current module, most modules need access to outside variables from the standard library or likewise required modules. For this scenario, Lua allows to pass the constant \texttt{package.seeall} as a second parameter to \texttt{module}. This results, however, in some strange phenomena that should be avoided in good software design.\footnote{See the article \emph{LuaModuleFunctionCritiqued} in \cite{LuaUsersWiki}.} Instead, it is possible to create local references to required global resources manually, thereby also creating a kind of dependency list of the module. Using this approach, the module \texttt{onsite} looks like this:
+
+\begin{lstlisting}[language=lua, caption={The module \texttt{onsite}}, label=lst:onsite, name=lst:onsite]
+local tostring = tostring
+local print = print
+local serialize = require "serialize"
+module(...)
+
+function get(query)
+	local result = "response to "..tostring(query)
+	print("local get of ", serialize.data(query), " returns ", result)
+	return result
+end
+
+function qry(query)
+	local result = "response to "..tostring(query)
+	print("local qry of ", serialize.data(query), " returns ", result)
+	return result
+end
+
+function put(fact)
+	print("local put of ", (serialize.data(fact)))
+	return fact
+end
+\end{lstlisting}
+
 \section{Module \texttt{shell}: Command line interface}
 
 \chapter{Test Programs}
@@ -48,7 +76,7 @@ end
 	
 The first argument to the program sets the object type to be used for the test. The second and third arguments define the number of objects with which multiple arrays are filled.\footnote{It is necessary to keep a reference to all the created objects since Lua features automatic garbage collection.} The fourth argument allows to pause the program's execution for a while (\texttt{"wait"}) or indefinitely (\texttt{"inf"}) in order to ease using looking up the used memory manually.
 
-\section{Performance measurement for \texttt{evoltion}'s search algorithm}
+\section{Performance measurement for \texttt{evolution}'s search algorithm}
 
 
 \chapter{Documentation}

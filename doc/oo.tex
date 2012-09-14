@@ -2,7 +2,7 @@
 \label{oo}
 \label{chap:oo}
 
-In more complicated modules like \texttt{constraints} (see \ref{chap:constraints}) and \texttt{evolution} (see \ref{chap:evolution}), it felt natural to model the required data structures as objects. Lua, however, does not provide native support for object oriented programming. Using the very versatile data structures Lua does provide (mainly tables and lambdas with lexical binding), OO can easily be built into Lua, though. In fact, the introductory book \cite{Ierusalimschy2006} already illustrates two different approaches at implementing objects in Lua, which will be referred to later in this chapter. Sadly, this versatility and multitude of different approaches does not aid interoperability. So choosing a hard-coded model for object orientation felt like limiting one's choices down the road. Also, cluttering application code with commands that only deal with objects in an abstract way is not exactly good programming style.
+In more complicated modules like \texttt{constraints} (see \ref{sec:evolution:constraints}) and \texttt{evolution} (see \ref{sec:evolution:evolution}), it felt natural to model the required data structures as objects. Lua, however, does not provide native support for object oriented programming. Using the very versatile data structures Lua does provide (mainly tables and lambdas with lexical binding), OO can easily be built into Lua, though. In fact, the introductory book \cite{Ierusalimschy2006} already illustrates two different approaches at implementing objects in Lua, which will be referred to later in this chapter. Sadly, this versatility and multitude of different approaches does not aid interoperability. So choosing a hard-coded model for object orientation felt like limiting one's choices down the road. Also, cluttering application code with commands that only deal with objects in an abstract way is not exactly good programming style.
 
 Instead, the author created an abstract module \texttt{oo} to provide all the functionality one needs to write code in an object oriented manner, without committing to a specific implementation of object orientation. But not only the module interface allows the user to plug in different implementations of OOP (by replacing the module \texttt{oo} with another module with the same interface), the module \texttt{oo} itself already offers three different implementations to be chosen on the fly.
 
@@ -51,7 +51,7 @@ point2 = point1:intend{
 print(point2:gety()) --prints 2
 \end{lstlisting}
 
-Here, we overwrite the properties \texttt{x} and \texttt{y}, but inherit all the methods we defined for \texttt{point}. This allows for a fast creation of new objects, but only if we want to expose the object's internal state. As this is usually considered a bad design practice, we can use the prototypal inheritance to augment the \texttt{point} prototype by a \emph{factory}\footnote{see the factory pattern TODO:EXPANDTHIS} as seen in listing \ref{lst:factory}.
+Here, we overwrite the properties \texttt{x} and \texttt{y}, but inherit all the methods we defined for \texttt{point}. This allows for a fast creation of new objects, but only if we want to expose the object's internal state. As this is usually considered a bad design practice, we can use the prototypal inheritance to augment the \texttt{point} prototype by a \emph{factory}\footnote{see the factory pattern in \cite{GOF}.} as seen in listing \ref{lst:factory}.
 
 \begin{lstlisting}[language=lua, caption={Building a factory for points.}, label=lst:factory, name=lst:factory]
 require "oo"
@@ -134,9 +134,9 @@ print(point4:getneighbors()[1]:gety()) --prints 8
 
 \end{lstlisting}
 
-In listing \ref{lst:clone} we require the module \texttt{typetools} (and define a shortcut for its name) in order to use the function \texttt{typetools.deepcopy}, which (unsurprisingly) returns a deep copy of its argument.\footnote{See section \ref{sec:tt} for more information on the module \texttt{typetools} and its functions.}
+In listing \ref{lst:clone} we require the module \texttt{typetools} (and define a shortcut for its name) in order to use the function \texttt{typetools.deepcopy}, which (unsurprisingly) returns a deep copy of its argument.\footnote{See section \ref{sec:tools:typetools} for more information on the module \texttt{typetools} and its functions.}
 
-It is quite common for an object to feature properties that should not be accessible from outside the object and thus need to be deepcopied when cloning the object.\footnote{This mostly occurs for object associations usually modeled as \emph{compositions} in UML. TODO:EXPANDTHIS } To make these cases easier to implement, \texttt{oo} provides the tagging function \texttt{oo.dynamic} that is used similarly to \texttt{oo.public} but allows to mark table properties that are an integral part of the object and share the object's life cycle. These are then automatically deepcopied when cloning (or inheriting from) an object.
+It is quite common for an object to feature properties that should not be accessible from outside the object and thus need to be deepcopied when cloning the object.\footnote{This mostly occurs for object associations usually modeled as \emph{compositions} in UML. See section 7.3.3 in \cite{UML} for more an UML's compositions.} To make these cases easier to implement, \texttt{oo} provides the tagging function \texttt{oo.dynamic} that is used similarly to \texttt{oo.public} but allows to mark table properties that are an integral part of the object and share the object's life cycle. These are then automatically deepcopied when cloning (or inheriting from) an object.
 
 \begin{lstlisting}[language=lua, caption={Rewriting listing \ref{lst:clone} using \texttt{oo.dynamic}}, label=lst:dynamic, name=lst:dynamic]
 require "oo"

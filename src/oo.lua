@@ -21,14 +21,14 @@ local publictag = {}
 local dynamictag = {}
 
 function public(method)
-    if not type(method) == "function" then
+    if not (type(method) == "function") then
         error("only functions can be public")
     end
     return {tag=publictag, entity=method}
 end
 
 function dynamic(property)
-    if not type(property) == "table" then
+    if not (type(property) == "table" or type(property) == "nil") then
         error("only referential types (i.e. tables) can be marked as dynamic")
     end
     return {tag=dynamictag, entity=property}

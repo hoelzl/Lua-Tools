@@ -4,7 +4,6 @@
 -- EXPORTS: update, deepcopy, shallowcopy, proxy                                        --
 ------------------------------------------------------------------------------------------
 
-local pairs = pairs
 local type = type
 local getmetatable = getmetatable
 local setmetatable = setmetatable
@@ -18,15 +17,24 @@ function update(table, update)
     return table
 end
 
-function deepcopy(thing)
+function deepcopy(thing, cache)
+    cache = cache or {}
 	if type(thing) == "table" then
         local metatable = getmetatable(thing)
         if metatable and metatable.__copy then
             return metatable.__copy(thing)
         end
 		local copy = {}
-		for key,val in pairs(thing) do
-			copy[deepcopy(key)] = deepcopy(val)
+		for key,val in stdpairs(thing) do
+            if not cache[key] then
+                cache[key] = {}
+                cache[key] = deepcopy(key, cache)
+            end
+            if not cache[val] then
+                cache[val] = {}
+                cache[val] = deepcopy(val, cache)
+            end
+            copy[cache[key]] = cache[val]
 		end
         if metatable then
             setmetatable(copy, metatable)
@@ -40,7 +48,7 @@ end
 function shallowcopy(thing)
     if type(thing) == "table" then
         local copy = {}
-        for key,val in pairs(thing) do
+        for key,val in stdpairs(thing) do
             copy[key] = val
         end
         return copy

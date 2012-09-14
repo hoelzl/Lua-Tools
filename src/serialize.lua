@@ -27,6 +27,7 @@ local function serialize(expr, saved, prologue, index)
 			prologue = prologue..string.format("local %s={}; ", saved[expr])
 			index = index + 1
 			for key,val in pairs(expr) do
+                local kexpr, vexpr
 				kexpr, saved, prologue, index = serialize(key, saved, prologue, index)
 				vexpr, saved, prologue, index = serialize(val, saved, prologue, index)
 				prologue = prologue..string.format("%s[%s]=%s; ", saved[expr], kexpr, vexpr)
