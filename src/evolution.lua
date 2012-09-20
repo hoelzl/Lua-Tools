@@ -6,6 +6,7 @@
 
 math.randomseed(os.time() * os.time() * math.random() - os.time()) -- this sucks
 math.random()
+
 local RNG = RNG or math.random
 local pairs = pairs
 local oo = require "oo"
@@ -68,12 +69,9 @@ population = oo.object:intend{
 		if candidate == nil then
 			return false
 		end
-		if this.elite == nil then
+		if (this.elite == nil) or this:compare(this.elite, candidate) then
 			this.elite = candidate:clone()
-			return true
-		end
-		if this:compare(this.elite, candidate) then
-			this.elite = candidate:clone()
+			this.environment:update(this.elite:gettraits())
 			return true
 		end
 		return false
@@ -165,7 +163,7 @@ population = oo.object:intend{
 		birthrate = birthrate or defaultbirthrate
 		local individuals = {}
 		for individual,ranks in pairs(this.individuals) do
-			if not (individual == elite) then --elite always survives
+			if not (individual == this.elite) then --elite always survives
 				individuals[#individuals+1] = individual
 			end
 		end

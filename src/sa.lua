@@ -6,6 +6,7 @@
 
 math.randomseed(os.time() * os.time() * math.random() - os.time()) -- this sucks again
 math.random()
+
 local RNG = RNG or math.random
 local pairs = pairs
 local math = math
@@ -65,6 +66,7 @@ process = oo.object:intend{
     attemptusurpation = (function (self, candidate)
         if self:compare(self.elite, candidate) then
             self.elite = tt.deepcopy(candidate)
+			self.environment:update(self.elite)
         end
     end),
     

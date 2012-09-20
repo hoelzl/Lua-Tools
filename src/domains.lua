@@ -37,16 +37,20 @@ local naturaldomain = oo.object:intend{
         return RNG(self.min, self.max)
     end),
     step = oo.public (function (self, origin)
-        if origin == min then return self.min + stepsize end
-        if origin == max then return self.max - stepsize end
+        local step = RNG(1, self.stepsize)
+        if origin - step < self.min and origin + step > self.max then
+            step = RNG(1, math.floor((self.max - self.min)/2))
+        end
+        if origin - step < self.min then return origin + step end
+        if origin + step > self.max then return origin - step end
         if RNG(0, 1) == 1 then
-            return origin + self.stepsize
+            return origin + step
         else
-            return origin - self.stepsize
+            return origin - step
         end
     end),
     combine = oo.public (function (self, a, b)
-        return math.floor(math.abs(a-b+0.5)/2)
+        return self.min + math.floor(math.abs(a-b+0.5)/2)
     end),
 }
 
@@ -81,7 +85,7 @@ local floatdomain = oo.object:intend{
         return result
     end),
     combine = oo.public (function (self, a, b)
-        return math.abs(a-b)/2
+        return self.min + math.abs(a-b)/2
     end)
 }
 

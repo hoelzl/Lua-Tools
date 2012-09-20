@@ -4,6 +4,10 @@
 -- EXPORTS: environment                                                                 --
 ------------------------------------------------------------------------------------------
 
+local function updateglobal(var, val)
+	_G[var] = val
+end
+
 local pairs = pairs
 local oo = require "oo"
 local nd = require "nd"
@@ -11,11 +15,11 @@ module(...)
 
 environment = oo.object:intend{
 
-	order = (function (a, b)
-		return false
-	end),
-	constraints = {},
-	vars = oo.dynamic{},
+	order       = (function (a, b) return false end),
+	constraints = oo.dynamic{},
+	vars        = oo.dynamic{},
+	solution    = oo.dynamic{},
+	living      = false,
 	
 	new = oo.public (oo.instantiate("order", "constraints")),
 	
@@ -58,9 +62,34 @@ environment = oo.object:intend{
 		return best, results[best]
 	end),
 	
-	max = oo.public (function (...)
+	max = oo.public (function (this, ...)
 		local i = this.test(arg)
 		return arg[i]
+	end),
+	
+	current = oo.public (function()
+		return this.solution
+	end),
+	
+	updateglobals = (function (this, values)
+		values = values or this.solution
+		if this.living then
+			for name,value in pairs(values) do
+				if this.vars[name] then
+					updateglobal(name, value)
+				end
+			end
+		end
+	end),
+	
+	live = oo.public (function (this, living)
+		this.living = living or true
+		this:updateglobals()
+	end),
+	
+	update = oo.public (function (this, values)
+		this.solution = values or this.solution
+		this:updateglobals(values)
 	end)
 
 }

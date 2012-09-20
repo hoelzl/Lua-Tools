@@ -30,6 +30,7 @@ x:register("_", domains.float())
 --x:register("_b", domains.float())
 --x:register("_c", domains.float())
 
+x:live()
 
 e = evolution.population:new(x)
 e:seed(10)
@@ -41,3 +42,4 @@ serialize.print(test3result:gettraits())
 e:grow(5)
 test4result = e:age(21):best()
 serialize.print(test4result:gettraits())
+print(b)

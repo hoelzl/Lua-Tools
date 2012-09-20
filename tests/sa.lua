@@ -22,14 +22,15 @@ x:constrain("bigdifference", function() return math.abs(a-b) end)
 x:constrain("highc", function() return c end)
 x:register("b", domains.natural(2, 150))
 x:register("c", domains.float(1, 19))
-
+x:live()
 
 e = sa.process:new(x)
 e:start("bigdifference")
 
 test2result = e:best()
 serialize.print(test2result)
-test3result = e:anneal(21):best()
+test3result = e:anneal(210):best()
 serialize.print(test3result)
-test4result = e:anneal(21):best()
+test4result = e:anneal(210):best()
 serialize.print(test4result)
+print(b)
