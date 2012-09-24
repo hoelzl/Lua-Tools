@@ -145,17 +145,14 @@ population = oo.object:intend{
 	end),
 	
 	age = oo.public (function (this, n, meetrate, birthrate)
-		if n <= 0 then return this end
 		n = n or 1
+		if n <= 0 then return this end
+		this:survive(meetrate, birthrate)
 		for individual,_ in pairs(this.individuals) do
 			individual:mutate()
 			this:attemptusurpation(individual)
 		end
-		this:survive(meetrate, birthrate)
-		if n == 1 then
-			return this
-		end
-		return this:age(n-1, meetrate, birthrate)
+		return n == 1 and this or this:age(n-1, meetrate, birthrate)
 	end),
 	
 	survive = oo.public (function (this, meetrate, birthrate)
@@ -163,9 +160,7 @@ population = oo.object:intend{
 		birthrate = birthrate or defaultbirthrate
 		local individuals = {}
 		for individual,ranks in pairs(this.individuals) do
-			if not (individual == this.elite) then --elite always survives
-				individuals[#individuals+1] = individual
-			end
+			individuals[#individuals+1] = individual
 		end
 		local deaths = 0
 		for i,individual in pairs(individuals) do
@@ -184,6 +179,24 @@ population = oo.object:intend{
 		end
 		this:seed(deaths)
 		return this
+	end),
+	
+	all = oo.public (function (this, trait)
+		local results = {}
+		for individual,_ in pairs(this.individuals) do
+			results[individual] = individual:gettraits()[trait]
+		end
+		return results
+	end),
+	
+	average = oo.public (function (this, trait)
+		local sum = 0
+		local n = 0
+		for individual,_ in pairs(this.individuals) do
+			n = n + 1
+			sum = sum + individual:gettraits()[trait]
+		end
+		return (sum / n)
 	end),
 
 }

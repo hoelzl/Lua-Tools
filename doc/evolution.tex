@@ -1,0 +1,446 @@
+\chapter{Probabilistic search}
+
+The modules in this chapter are technically independent. However, the more complex modules \texttt{evolution} and \texttt{sa} heavily use the interfaces that are provided by the more basic modules \texttt{constraints} and \texttt{domains}, so they are most likely to be used in conjunction, but still open for expansion.\footnote{See appendix \ref{sec:app:queens} for an example program that replaces \texttt{domain} with another piece of software with the same interface.}
+
+The altogether purpose of this modules is to equip the user with means to execute a probabilistic search on arbitrary constraints. The module \texttt{constraints} allows to evaluate and manage constraints with the module \texttt{domains} providing a few default options for defining the search domain. The module \texttt{evolution} builds on top of that and provides a simple yet flexible implementation of an evolutionary search algorithm. Likewise, the module \texttt{sa} is able to perform simulated annealing to find solutions in suitable search spaces.
+
+All four modules make heavy use of object oriented programming, requiring the module \texttt{oo} (see chapter \ref{chap:oo}).
+
+\section{Module \texttt{constraints}: Constraint evaluation}
+\label{sec:evolution:constraints}
+
+\subsection{Testing against arbitrary constraints}
+
+The module \texttt{constraints} provides a constraint solving tool powerful enough to model arbitrary constraints. It chooses a two-stage approach similar to the constraints described in \cite{HoelzlMeierWirsing2009}, i.e. it uses a set of constraints to compute \emph{ranks} for a given solution, and then uses a compare function to determine which one of two solutions is preferable. Since the constraints and the comparison are problem-specific, they need to be set by the user of \texttt{constraints}.
+
+The configuration of a search problem is summed up in an instance of the object \texttt{constraints.environment}. Its job has two aspects: Saving and evaluating all applied constraints and keeping track of the variables used to describe a possible solution. Usually, these will be used by the search algorithm to apply the constraints to, but this behavior is not enforced by \texttt{constraints.environment}.
+
+When creating a new instance of \texttt{constraints.environment}, its \texttt{new} method needs to be passed the comparison function as its first parameter. This function receives two sets of ranks and is expected to return \texttt{true} if the second set of ranks is to be considered "better" than the first. The constraints that generate these ranks are set using the method \texttt{constrain}, as shown in listing \ref{lst:constraints1}.
+
+\begin{lstlisting}[language=lua, caption={Example set up of \texttt{constraints.environment}}, label=lst:constraints1, name=lst:constraints]
+require "constraints"
+
+x = constraints.environment:new(function(left, right)
+	if left.bigdifference > right.bigdifference then
+		return true
+	elseif left.bigdifference < right.bigdifference then
+		return false
+	else
+		return left.highc < right.highc
+	end
+end)
+x:constrain("bigdifference", function() return math.abs(5-b) end)
+x:constrain("highc", function() return c end)
+\end{lstlisting}
+
+Each constraint must be given a name, which is used to identify the ranks assigned to a specific solution by that constraint. These names can also be used to index the set of ranks passed to the comparison function. All defined constraints will result in exactly one entry of both arguments passed to the comparison function. 
+
+The example program shown in listing \ref{lst:constraints1} defines a constraint environment\footnote{Note that \texttt{constraints.environment} is not a constraint solver or search algorithm. It's merely a catalog of all relevant parts of the environment and is to be referred to by the actual search algorithms like the ones provided by \texttt{evolution} and \texttt{sa}, which are explained in sections \ref{sec:evolution:evolution} and \ref{sec:evolution:sa} respectively.} where the value of \texttt{b} is the better the closer it is to 5, while the value of \texttt{c} is the better the higher it is. A solution is judged by the rank \texttt{"bigdifference"} first, which means that having a \texttt{b} value closer to 5 is more important than having a high \texttt{c} value.
+
+Since \texttt{b} and \texttt{c} are normal, global variables, it may seem like \texttt{constraints.environment} is not built to process a lot of different solutions, but that's exactly what it does. Using the methods \texttt{try} and passing it a solution, one can retrieve the solution's rank. Note that the solution is given through a table whose keys are names of global variables with their respective entries containing the values to be assigned to those variables during constraint evaluation.\footnote{This assignment is (of course) performed by \texttt{nd.whatif}, but without protection for local variables. See section \ref{sec:tools:nd} for more on this function.} The returned ranks of a solution are a table mapping constraint names to arbitrary rank values. See listing \ref{lst:constraints2} for an example.
+
+\begin{lstlisting}[language=lua, caption={Example usage of the method \texttt{try} (continued from listing \ref{lst:constraints1})}, label=lst:constraints2, name=lst:constraints]
+ranks = x:try({b = 7, c = 10}) 
+print(ranks.bigdifference) -- prints 2
+print(ranks.highc) -- prints 10
+
+index, ranks = x:test({{b = 7, c = 10}, {b = 4, c = 2})
+print(index) -- prints 2
+print(ranks.bigdifference) --prints 1
+print(ranks.highc) --prints 2
+\end{lstlisting}
+
+The method \texttt{test} accepts a list of several solution candidates and returns the index of the best solution in the given list, passing the ranks computed for that solution as a second return value.
+
+Normally, though, the user will not call the methods \texttt{try} and \texttt{test} manually, but have the search algorithm do that while automatically providing the "newest" solution candidate. To allow the search algorithm to automatically generate values for all necessary variables used in the constraint functions, one needs to register said variables with a \texttt{constraints.environment}, as shown in the following section.
+
+
+\subsection{Keeping track of variables}
+\label{sec:evolution:constraints:vars}
+
+As mentioned above, \texttt{constraints.environment} also provides means to manage the variables altered by the search algorithm: Using the method \texttt{register}, one can register a variable name and thus indicate that the values of said variable are to be determined by the search algorithm.\footnote{The search algorithsm presented in sections \ref{sec:evolution:evolution} and \ref{sec:evolution:sa} both receive a \texttt{constraints.environment} as their parameter and thus respect all configurations made here.}
+
+\begin{lstlisting}[language=lua, caption={Registering variables (continued from listing \ref{lst:constraints2})}, label=lst:constraints3, name=lst:constraints]
+x:register("b")
+x:register("c", 42)
+print(x:getvars().c) -- prints 42
+print(x:getvars().b) -- prints true
+print(x:getvars().a) -- prints nil
+\end{lstlisting}
+
+As shown in listing \ref{lst:constraints3}, the method \texttt{getvars} is used (mainly by the applied search algorithm) to retrieve a set of all registered variables. The value with which they are registered can be passed as a second parameter to the method \texttt{register}. This feature can be used to register additional metadata for the variable, mainly its respective search domain. See following section \ref{sec:evolution:domains} for more.
+
+Using the method \texttt{update}, one can return the results of the search algorithm to the \texttt{constraints.environment}. Note that the search algorithm is expected to do so automatically,\footnote{Narurally, the search algorithms of the modules \texttt{evolution} and \texttt{sa} do support this.} so the user normally should not be concerned about this. If ``live mode'' is activated, these results will be written back to the original (global) variables, so that the rest of the program can seamlessly use the acquired (hopefully optimized) values, which will usually allow for much simpler code, but can possibly affect the whole program. ``Live mode'' can be toggled by calling \texttt{constraints.environment}'s method \texttt{live}, which should be done before performing any kind of search on the \texttt{constraints.environment} to ensure that all solutions are regarded for an update.\footnote{To deactivate ``live mode'', it is possibly to pass the parameter \texttt{false} to a call of the method \texttt{live}.} See listing \ref{lst:constraints4} for an example:
+
+\begin{lstlisting}[language=lua, caption={Activating live mode (continued from listing \ref{lst:constraints3})}, label=lst:constraints4, name=lst:constraints]
+x:update({b = 1, c = 8}) -- this method is called automatically
+print(b) -- prints nil as the variable is not yet set on a global level
+x:live() -- activate live mode
+print(b) -- prints 1
+
+\end{lstlisting}
+
+\section{Module \texttt{domains}: Domains for probabilistic search}
+\label{sec:evolution:domains}
+
+\subsection{Interface}
+\label{sec:evolution:domain}
+
+A search domain is an object which provides the three methods \texttt{start}, \texttt{step} and \texttt{combine}. They are used to crate an initial value for a search variable (\texttt{start}), randomly change a previous value (\texttt{step}) and generate a new value out of two old ones (\texttt{combine}). The example presented in listing \ref{lst:coinflip} implements a simple domain representing the possible outcomes of a coin flip (i.e. ``heads'' and ``tails'').\footnote{Since the method \texttt{step} is expected to actually change the given value, its only possible implementation is to flip the coin over deterministically. The \texttt{combine} function is not restricted that way.}
+
+\begin{lstlisting}[language=lua, caption={A domain representing the results of a coin flip}, label=lst:coinflip, name=lst:coinflip]
+math.randomseed(os.time())
+coinflipdomain = oo.object:intend{
+	start = oo.public (function (self)
+		if math.random() < 0.5 then
+			return "heads"
+		else
+			return "tails"
+		end
+	end),
+	step = oo.public (function (self, origin)
+		if origin == "heads" then
+			return "tails"
+		else
+			return "heads"
+		end
+	end),
+	combine = oo.public (function (self, a, b)
+		if  math.random() < 0.5 then
+			return a
+		else
+			return b
+		end
+	end),
+}
+\end{lstlisting}
+
+The function \texttt{math.random} is part of Lua's standard library and will be used a lot in the software described in this chapter: When given no arguments, it returns a random float value between 0 and 1 (inclusive). However, it can be passed two integer arguments: The call \texttt{math.random(1, 10)} returns a random integer in the range $[1, 10]$ (inclusive). Note that as one of Lua's design goals was that it could be implemented using the features of ANSI C only, its capabilities of generating random numbers are extremely limited and will often result in obviously non-random sequences.\footnote{See the article \emph{MathLibraryTutorial} on \cite{LuaUsersWiki} for a complete overview of Lua's \texttt{math} module, including some pointers to using \texttt{math.random}.} Mind that it is necessary to call \texttt{math.randomseed} before effectively using Lua's random number generator (RNG), as it is done in line 1 of listing \ref{lst:coinflip}.\footnote{For more information on finding a usable seed value, see section 4.3 of \cite{Viega2003}.}
+
+\subsection{Data types}
+\label{sec:evolution:domains:data}
+
+The module \texttt{domains} provides descriptive domains for most use cases. To tailor the domain restrictions precisely to the actual search space, the domains are generated by the functions \texttt{domains.natural}, \texttt{domains.float} and \texttt{domains.just}. The latter returns a domain that only contains the value given as an argument to \texttt{domains.just}, which makes all of its methods trivial. This domain is mostly used by \texttt{evolution} to pass on some fixed values to the individuals, as will be discussed in section \ref{TODO:idontknowyet}.
+
+Much more powerful domains can be created by \texttt{domains.natural}. When called without parameters, it returns a domain very similar to the \texttt{coinflipdomain} of listing \ref{lst:coinflip}, except it uses the values 0 and 1 (instead of ``heads'' and ``tails''). However, this function can be passed additional arguments which define the minimum value, the maximum value and the maximum distance between two numbers that can be ``travelled'' by a step. All of these arguments are optional and default to 0, 1 and 1 respectively.
+
+\begin{lstlisting}[language=lua, caption={Defintion of \texttt{domains.natural}}, label=lst:natural, name=lst:natural]
+local naturaldomain = oo.object:intend{
+    min = 0,
+    max = 1,
+    stepsize = 1,
+    new = oo.public (oo.instantiate("min", "max", "stepsize")),
+    start = oo.public (function (self)
+        return RNG(self.min, self.max)
+    end),
+    step = oo.public (function (self, origin)
+        local step = RNG(1, self.stepsize)
+        if origin - step < self.min and origin + step > self.max then
+            step = RNG(1, math.floor((self.max - self.min)/2))
+        end
+        if origin - step < self.min then return origin + step end
+        if origin + step > self.max then return origin - step end
+        if RNG(0, 1) == 1 then
+            return origin + step
+        else
+            return origin - step
+        end
+    end),
+    combine = oo.public (function (self, a, b)
+        return self.min + math.floor(math.abs(a-b+0.5)/2)
+    end),
+}
+
+function natural(...)
+    return naturaldomain:new(unpack(arg))
+end
+\end{lstlisting}
+
+Note that the module \texttt{domains} defines the module-local variable \texttt{RNG} by setting it to the value of the global variable \texttt{RNG} if such a variable exists and to \texttt{math.random} otherwise. This mechanism is used to allow the user to easily replace the used random number generator, as Lua's has several flaws as discussed in the previous section. The modules \texttt{evolution} and \texttt{sa} use the same definition for their local \texttt{RNG} variable.
+
+While \texttt{naturaldomain}'s \texttt{start} method is trivial, \texttt{step} needs to take a few precautions to keep the newly generated number inside the predefined bounds. This causes the chances of \texttt{step} changes to not be uniformly distributed between the possible boundaries defined by \texttt{stepsize}. However, these variations in probability do not interfere with the correctness of the applied search algorithm and may (because of their rareness) only cause slight performance loss.\footnote{In general, probabilistic search algorithms seem to be quite resistant against not entirely random step functions. For genetic algorithms (see section \ref{sec:evolution:evolution}), \cite{CantuPaz2002} concludes that a not-so-random mutation function ``does not seem to affect the results''.} The method \texttt{combine} returns, though a bit elaborately, the average of its parameters.
+
+The function \texttt{domains.float} and its respective domain object work quite similarly. However, this domain ranges over floating point numbers instead of integers. By default, these are limited to $[0, 1]$, but the first two parameters passed to \texttt{domains.float} allow to adjust that boundaries. Again, a third argument may be passed to \texttt{domains.float}, which mirrors the ``stepsize'' argument of \texttt{domains.natural}, defining the maximum difference between a value and its successor with respect to the \texttt{step} method. For \texttt{domains.float}, however, small steps are more probable than bigger ones, resulting in a Gaussian-like probability distribution for the ``step distance''. Again, the \texttt{combine} method produces the average of its parameters.
+
+\section{Module \texttt{sa}: Simulated Annealing}
+\label{sec:evolution:sa}
+
+\subsection{Algorithm}
+
+The module \texttt{sa} provides a basic implementation of a simulated annealing algorithm that builds on top of \texttt{constraints} (see section \ref{sec:evolution:constraints}) and \texttt{domains} (see section \ref{sec:evolution:domains}) or modules which provide identical interfaces. Simulated annealing is a probabilistic optimization algorithm inspired by the respective process in metallurgy.\footnote{See for example section 4.3.2 of \cite{RussellNorvig2003} for more on simulated annealing or probabilistic search in general.}
+
+The process of simulated annealing starts with randomly generating a solution candidate and measuring its \emph{energy}, which is how the heuristic is called in the context of simulated annealing: The lower the energy of a solution, the better. In each subsequent step, a new neighbor to the current solution is generated and tested against the constraints, yielding the energy of the new solution candidate: If it is better, it replaces the old solution. If not, it still does so with a certain probability (less than 1). Said probability usually decreases during the execution of the search algorithm (hence ``annealing'') and also depends on the difference in energies of the current and the newly generated solution candidate: Big increases in energy are less likely to happen.
+
+\begin{lstlisting}[language=lua, caption={Definition of the \texttt{anneal} method of \texttt{sa.process} (inside a template table passed to \texttt{object:intend})}, label=lst:anneal, name=lst:anneal]
+anneal = oo.public (function (self, n, t)
+	self.time = self.time + 1
+	t = t or self.temperature(self.time)
+	n = n or 1
+	local energy = self:rank(self.states)[self.energy]
+	local new = self:next()
+	local newenergy = self:rank(new)[self.energy]
+	if self:compare(self.states, new) then
+		self.states = new
+	elseif RNG() < math.exp((energy - newenergy)/t) then
+		self.states = new
+	end
+	self:attemptusurpation(self.states)
+	return n == 1 and self or self:anneal(n-1, t)
+end),
+\end{lstlisting}
+
+Note that the \texttt{time} property of an object derived from \texttt{sa.process} is a counter of all calls to the \texttt{anneal} method. The property \texttt{self.temperature} is a function that returns the intended temperature for the given step number. The parameter \texttt{n} allows to execute \texttt{anneal} $n$ times by just calling it once and passing $n$ as its parameter. The property \texttt{states} contains the current solution candidate and \texttt{rank} computes the respective set of ranks as returned by the constraints (see section \ref{sec:evolution:constraints}). By default, the \texttt{sa.process} object uses the constraint named \texttt{"\_"} as its energy function. The user can, however, specify a different constraint to be used to retrieve a solution candidate's energy. Either way, that constraints name (or \texttt{"n"}) is saved in the property \texttt{energy}. Note that this means, that the user has to supply an appropriate energy function when defining the constraints in order to meaningfully use \texttt{sa.process}.\footnote{For some search problems, this is not possible or not practical. The module \texttt{evolution} (see section \ref{sec:evolution:evolution} should still be able to produce results in those cases, though. For a comparison of both search algorithms see TODO: reference}
+
+The method \texttt{compare} receives two solution candidates and calls the constraint environment's \texttt{compare} method on their respective ranks. If the new solution is superior to the current one, the process ``moves'' to the new one. Otherwise, it still does so with the chance \texttt{math.exp((energy - newenergy)/t)}.\footnote{This formula is adopted from \cite{RussellNorvig2003}, but altered to work with an algorithm that \emph{minimizes} energy.} The module-local \texttt{RNG}, again (see section \ref{sec:evolution:domains:data}) is a shortcut for \texttt{math.random} by default. The private method \texttt{attemptusurpation} is used to check if the current solution is superior to the (formerly) best found solution. If that's the case, it reports the new solution to the constraint environment.
+
+\subsection{Usage}
+
+Using this algorithm, it is possible to automatically solve the (extremely simple) optimization problem sketched in listing \ref{lst:constraints1}. To do so, one needs to create a new instance of \texttt{sa.process} and pass it the respective instance of \texttt{constraints.environment}. The method \texttt{start} of the process object initiates the simulated annealing process using the constraint with the given name as an energy measure. The \emph{temperature schedule} can be passed as a second argument to \texttt{start}. It is expected to be a function of the number of the current iteration of the simulated annealing. When it's missing, \texttt{sa.process} uses a rather crude default, since optimizing temperature schedules are a large area of research and beyond the scope of this work.\footnote{Cf. \cite{Lam88}, for example.}
+
+\begin{lstlisting}[language=lua, caption={Solving (and reiterating) the constraints of listing \ref{lst:constraints1}.}, label=lst:sa, name=lst:sa]
+require "sa"
+require "domains"
+require "constraints"
+require "serialize"
+
+x = constraints.environment:new(function(left, right)
+	if left.bigdifference > right.bigdifference then
+		return true
+	elseif left.bigdifference < right.bigdifference then
+		return false
+	else
+		return left.highc < right.highc
+	end
+end)
+x:constrain("bigdifference", function() return math.abs(5-b) end)
+x:constrain("highc", function() return c end)
+x:register("b", domains.natural(2, 150))
+x:register("c", domains.float(1, 19))
+x:live()
+
+e = sa.process:new(x)
+e:start("bigdifference")
+test1result = e:best()
+serialize.print(test1result)
+test2result = e:anneal(210):best()
+serialize.print(test2result)
+test3result = e:anneal(210):best()
+serialize.print(test3result)
+print(b)
+\end{lstlisting}
+
+In general, the script presented in listing should perform very well at finding the global optimum (at $b=5, c=19$). While useful to show the interface of the software, problems this simple are obviously not a good test case for a search algorithm, though. See appendix \ref{queens} for a more complex example.
+
+\section{Module \texttt{evolution}: Genetic algorithms}
+\label{sec:evolution:evolution}
+
+\subsection{Basics}
+\label{sec:evolution:basics}
+
+Genetic algorithms are based upon the basic principles of evolution.\footnote{Cf. \cite{Dawkins1990} for an exhaustive introduction to the principles of evolution.} In contrast to simulated annealing (see previous section \ref{sec:evolution:sa}), which only applies changes to the one ``current solution'' at a time, a genetic algorithm maintains a set of solution candidates, also called a \emph{population}, which are evolved simultaneously. By continuously eliminating inferior solution candidates, a \emph{selection pressure} is put on the population. According to the laws of evolution, this will (probabilistically) cause the average \emph{fitness} of the population to raise, i.e. the solution candidates, that make up the population, tend to become better over time.
+
+Beyond this basic foundation, the literature knows a vast amount of possible implementations and variations of the described search method.\footnote{\cite{EibenSmith2007} provides a comprehensive overview over several of these variations.} The module \texttt{evolution} aims to implement a very simple yet flexible approach at genetic algorithms, that is able to adapt to a few of the most common variations. Needless to say, the module is incapable of providing the exact functionalities of \emph{all} kinds of genetic algorithms.
+
+One of the main advantages of the genetic algorithms provided by the module \texttt{evolution} is that they do not depend on any heuristic on the quality of a solution candidate beyond the direct comparison of two candidates. This is contrary to simulated annealing, for example, which requires a function capable of assigning an ``energy'' value to any solution candidate. Thus, the module \texttt{evolution} can be used for problems where a consistent ordering of the solution candidates is unknown or impractical. As a consequence, though, it is usually less effective than other methods like simulated annealing, if such an ordering is easily available.\footnote{See \ref{sec:app:queens} for a side-by-side comparison of both methods on a problem, which both methods are able to solve.}
+
+Again, the probabilistic search method of \texttt{evolution} is built to work with the modules \texttt{constraints} (see section \ref{sec:evolution:constraints}) and \texttt{domains} (see section \ref{sec:evolution:domains}) or anything providing the same interface.
+
+\subsection{Individuals}
+\label{sec:evolution:individuals}
+
+The primitive entity of the evolution process performed by the module \texttt{evolution} is the \emph{individual},\footnote{According to \cite{Dawkins1990}, this is not the case for biological evolution. This is a surprising break with the general metaphor all genetic algorithms are based on, which appears in almost all literature on genetic algorithms. \cite{CornoReordaSquillero1998} introduces an as-of-yet niche approach at changing genetic algorithms accordingly.} which represents a single solution candidate. To create an individual, the module \texttt{evolution} provides the object \texttt{evolution.individual}'s  \texttt{new} method. This method expects two tables as its arguments, containing (1) the domains as provided by the constraint environment and (2) a solution candidate within the range of these domains. If the latter is left out, a new solution candidate is generated at random (by calling the given domains' \texttt{start} methods).
+
+As an individual packs a solution candidate with the respective domains, it can provide methods to alter the solution candidate on its own: In genetic algorithms, or rather evolution in general, there usually are two ways to alter the values (called \emph{traits} in this context) of a solution candidate. \emph{Mutation} is performed by the the respective domains' \texttt{step} method (see section \ref{sec:evolution:domain}) and equals a random change in the values of the respective candidate solution, much like how the module \texttt{sa} generates its new solution candidates (see section \ref{sec:evolution:sa}). Unique to genetic algorithms is \emph{recombination}, though. Usually likened to sexual reproduction in biological evolution, two individuals can be recombined (using the domains' \texttt{recombine} method) to produce a new one, hopefully combing desireable features of both of the ``parents'' in the process.
+
+\begin{lstlisting}[language=lua, caption={Definition of the object \texttt{evolution.individual}}, label=lst:individual, name=lst:individual]
+individual = oo.object:intend{
+	domains = {},
+	traits = oo.dynamic{},
+	
+	rate = (function (self, name)
+		return self.traits["_"..name] or self.traits["_"] or defaultmutationrate
+	end),
+	
+	new = oo.public (function (this, domains, traits)
+		domains = domains or {}
+		traits = traits or {}
+		for name,domain in pairs(domains) do
+			traits[name] = traits[name] or domain:start()
+		end
+		return this:intend{
+			domains = domains,
+			traits = oo.dynamic(traits)
+		}
+	end),
+	
+	gettraits = oo.public (oo.getter("traits")),
+	
+	mutate = oo.public (function (this)
+		for name,trait in pairs(this.traits) do
+			if RNG() < this:rate(name) then
+				this.traits[name] = this.domains[name]:step(trait)
+			end
+		end
+		return this
+	end),
+	
+	recombine = oo.public (function (this, other)
+		local offspringtraits = {}
+		for name,domain in pairs(this.domains) do
+			offspringtraits[name] = domain:combine(this.traits[name], other:gettraits()[name])
+		end
+		return individual:new(this.domains, offspringtraits)
+	end)
+}
+\end{lstlisting}
+
+The private method \texttt{rate} returns the chance of a mutation occurring for a value of a field with the given name in the solution candidate. It checks for the existence of a few special\footnote{Names of registered variables and constraints starting with a \texttt{"\_"} (underscore) should generally be reserved for special uses by the respective probabilistic search algorithm.} \emph{traits}, i.e. variables of the solution candidate, before returning the module-local value defined as \texttt{defaultmutationrate} (which is 0.1). The exact application of that cascade of traits will be discussed in section \ref{sec:evolution:adaptation}. For now, we can assume it just returns a fixed value.
+
+\subsection{Populations}
+\label{sec:evolution:populations}
+
+To initiate a genetic algorithm, it is necessary to create a start population first. This population will then go through multiple cycles of selection, mutation and reproduction in order to increase its overall fitness and find excellent solution candidates. One of these cycles is called a \emph{generation}. A population can be created by calling \texttt{evolution.population:new}, which expects a constraint environment as a parameter and returns a new, empty population. It is possible to create a new, randomly generated individual for the population by calling its \texttt{seed} method. The next generation of the population is computed when the method \texttt{age} is called. Both methods accept an integer $n$ as a first parameter and then execute themselves $n$ times (resulting in $n$ new individuals for the population or the simulation of $n$ generations respectively).
+
+\begin{lstlisting}[language=lua, caption={Solving (and reiterating again) the constraints of listing \ref{lst:sa} with a genetic algorithm of the module \texttt{evolution}.}, label=lst:evolution, name=lst:evolution]
+require "evolution"
+require "domains"
+require "constraints"
+require "serialize"
+
+x = constraints.environment:new(function(left, right)
+	if left.bigdifference > right.bigdifference then
+		return true
+	elseif left.bigdifference < right.bigdifference then
+		return false
+	else
+		return left.highc < right.highc
+	end
+end)
+x:constrain("bigdifference", function() return math.abs(5-b) end)
+x:constrain("highc", function() return c end)
+x:register("b", domains.natural(2, 150))
+x:register("c", domains.float(1, 19))
+x:live()
+
+e = evolution.population:new(x)
+e:seed(10)
+test1result = e:best()
+serialize.print(test1result:gettraits())
+test2result = e:age(21):best()
+serialize.print(test2result:gettraits())
+test3result = e:age(21):best()
+serialize.print(test3result:gettraits())
+print(b)
+\end{lstlisting}
+
+Note that the population object generally returns individuals, which makes the method call \texttt{gettraits} necessary to receive the solution candidates as a simple Lua table. The interface of the constraint environment\footnote{As explained in section \ref{sec:evolution:constraints:vars}, the constraint environment keeps track of the currently best found solution, which can be rertrieved through the environment's \texttt{current} method. Also, ``live mode'' is unaffected by the choice of search algorithm.} remains the same, though. Having a comparable number of evaluations of the environment's comparison function to listing \ref{lst:sa}, which uses simulated annealing, the script presented in listing \ref{lst:evolution} usually performs well at finding the trivial solution.
+
+While the implementation of the population's \texttt{seed} method is trivial, the method \texttt{age} allows to fine-tune the parameters of the evolution further.
+
+\begin{lstlisting}[language=lua, caption={Definition of the methods \texttt{age} and \texttt{survive} of \texttt{evolution.population} (inside a template table passed to \texttt{object:intend})}, label=lst:generation, name=lst:generation]
+	age = oo.public (function (this, n, meetrate, birthrate)
+		n = n or 1
+		if n <= 0 then return this end
+		this:survive(meetrate, birthrate)
+		for individual,_ in pairs(this.individuals) do
+			individual:mutate()
+			this:attemptusurpation(individual)
+		end
+		return n == 1 and this or this:age(n-1, meetrate, birthrate)
+	end),
+	
+	survive = oo.public (function (this, meetrate, birthrate)
+		meetrate = meetrate or defaultmeetrate
+		birthrate = birthrate or defaultbirthrate
+		local individuals = {}
+		for individual,ranks in pairs(this.individuals) do
+			individuals[#individuals+1] = individual
+		end
+		local deaths = 0
+		for i,individual in pairs(individuals) do
+			if RNG() < meetrate then
+				local mate = individuals[RNG(1, #individuals)]
+				if this:compare(individual, mate) then
+					this:kill(individual)
+					if RNG() < birthrate then
+						local child = individual:recombine(mate)
+						this:integrate(child)
+					else
+						deaths = deaths + 1
+					end
+				end
+			end
+		end
+		this:seed(deaths)
+		return this
+	end),
+\end{lstlisting}
+
+The method's \texttt{age} main tasks are to first call the \texttt{survive} method to simulate natural selection and reproduction, then trigger the mutation on the individuals.\footnote{In the module \texttt{evolution}, the mutation is handled at the individual level and thus triggered deterministically at the population level. This allows for a simple implementation of self-adaptation mechanisms as shown in section \ref{sec:evolution:adaptation}.} The method \texttt{survive} is a bit more complex and will be discussed in-detail in the following paragraph. Note that the variables \texttt{defaultmeetrate} and \texttt{defaultbirthrate} are module-local variables and set to 1.0 and 0.5 by default. It is recommended to adjust these settings according to the actual problem, though. The private method \texttt{attemptusurpation} works the same way as the module \texttt{sa}'s and checks if a given individual is better than the currently best one.
+
+First, the method \texttt{survive} creates an indexed list of all individuals which are subjected to selection and reproduction.\footnote{Even though the shown implementation of selection is probabilistic, by the nature of the selection algorithm, the best individual of a generation is guaranteed to not be eliminated during selection. It is included in this list to be able to be subject to reproduction, though.} Then, it iterates over the generated list and (at some chance provided as a parameter to the algorithm) matched up with another, randomly selected, individual. If the first individual turns out to be inferior to the second, it is eliminated from the population (the private method \texttt{kill} works as expected). It is replaced by a new individual either created through recombination of the two selected individuals or randomly generated anew. The chance of either of these cases happening is again configurable by the user. Note that the private method \texttt{integrate} saves the given individual in the population object's internal data structures.
+
+Probably the most interesting aspect of this selection algorithm is that it only ever needs to compare two individuals side by side, but never needs to assign any ordering within the population. As already discussed in section \ref{sec:evolution:basics}, this allows to apply the genetic algorithms of the module \texttt{evolution} to a wider range of problems, especially when they involve unknown terrain. It does, however, add a bigger factor of randomness to the selection process, as any individual is only compared to a randomly selected mate, which may cause relatively good individuals to be eliminated and relatively worse ones to live for some time.
+
+\subsection{Self-Adaptation}
+\label{sec:evolution:adaptation}
+
+While the ``meet rate'' and ``birth rate'' of a generation can be adjusted when calling the population's \texttt{age} method (as discussed in previous section \ref{sec:evolution:populations}), this chapter did not mention how to adjust the mutation rate yet. In the simplest case, this can be done by executing the following line of code on a \emph{constraint environment} \texttt{x}:
+
+\begin{lstlisting}[language=lua, caption={Setting the mutation rate to 0.05}, label=lst:justmutationrate, name=lst:justmutationrate]
+x:register("_", domains.just(0.05))
+\end{lstlisting}
+
+The mutation rate of a given individual is saved as one of its traits, just like other variables of the solution candidate represented by the respective individual. The module \texttt{evolution} uses the variable named \texttt{"\_"} to look for the individuals mutation rate. By registering a domain of type ``just'' under this name, the user can make sure that all individual feature the mutation rate given in the call to \texttt{domain.just}.
+
+However, it is possible and, in fact, advised\footnote{Cf. chapter 4 of \cite{EibenSmith2007}.} to register a domain of type ``float'' as well. This causes the mutation rate to be subject to the genetic algorithm and thus to be adapted through evolution. This approach is called \emph{evolution strategies}. Note that since the default range of \texttt{domains.float} is chosen appropriately, it is quite easy to invoke this behavior:
+
+\begin{lstlisting}[language=lua, caption={Letting the genetic algorithm adapt the mutation rate.}, label=lst:floatmutationrate, name=lst:floatmutationrate]
+x:register("_", domains.float())
+\end{lstlisting}
+
+Remarkably, even though there is no direct selection pressure regarding the mutation rate of the candidate, evolution strategies tend to end up with the (nearly) ideal mutation rate for the current situation. Table \ref{tab:esrun} shows an example run of a genetic algorithm based on the constraints environment used throughout this chapter. The code can be found in appendix \ref{sec:app:adaptation}. As the mutation rate is initiated randomly, its average is much too high for a productive search during the first generation. It drops quite a bit once the population comes closer to the global optimum and sinks drastically once the optimum at $b=5$ is reached.\footnote{The selection pressure for the secondary constraint \texttt{"highc"} is too weak to further influence the best individuals' development: The risk of losing the prime spot is greater than the gain of increasing $c$.} Note that the development of the mutation rate crudely resembles the cooling temperature of a simulated annealing process, without ever programming a schedule for the genetic algorithm. Also, it is important to note that while it suffices to show the phenomenon, the constraint environment used as a basis for this test case is by no means complex enough to justify the usage of such a powerful search algorithm.\footnote{See section 4.8 of \cite{EibenSmith2007} for a theoretical discussion of the development of the mutation rate, which reaches the same conclusion as this paragraph.} A more complex example problem for genetic algorithms is discussed in appendix \ref{chap:app:queens}.
+
+\begin{table}[h]
+\caption{Typical run of an evolutionary strategy to solve the constraint environment presented in listings \ref{lst:constraints1}, \ref{lst:sa} and \ref{lst:evolution}}
+\begin{tabular}{|r|r|r|r|r|r|}
+\hline
+gen. & best $b$ & best $c$ & average $b$ & average $c$ & average mut. rate\\
+\hline
+\hline
+1	&22	&16.288719777152	&86.7	&11.32057517903	&0.50504128760893\\
+2	&4	&4.9031788953129	&41.7	&6.7138737829467	&0.31229836762058\\
+3	&4	&4.9031788953129	&18.2	&4.0762391914969	&0.14909811211941\\
+4	&4	&4.9031788953129	&13.6	&6.0713981362625	&0.14813754728443\\
+5	&5	&3.8267206815429	&9.3		&6.6202422577051	&0.14262972877134\\
+6	&5	&10				&5.8		&7.5514571629297	&0.056169370820825\\
+7	&5	&10				&4.8		&7.351276604468	&0.030771289588079\\
+8	&5	&10				&4.1		&4.7627658029103	&0.021645865264766\\
+9	&5	&10				&7.3		&6.315535882418	&0.046789229961683\\
+10	&5	&10				&7		&5.7205241824745	&0.040914518473208\\
+\hline
+\end{tabular}
+\begin{comment}
+11	&5	&10				&4.9		&5.0610243452619	&0.021979160650383\\
+12	&5	&10				&4		&4.2812525172189	&0.015440380096793\\
+13	&5	&10				&3.1		&4.7139780860724	&0.0085818193955619\\
+14	&5	&10				&16		&4.8117522290951	&0.0055886059135549\\
+15	&5	&10				&9.7		&3.6849230382421	&0.0048485278251359\\
+\end{comment}
+\label{tab:esrun}
+\end{table}
+
+The module \texttt{evolution} allows for even more detailed control of the mutation rate by registering solution variables for the mutation rate of a specific other variable. This is possible because when looking for the mutation rate of a given solution variable or trait \texttt{"abc"}, the private \texttt{rank} of \texttt{evolution.inidvidual} (printed in listing \ref{lst:individual} of section \ref{sec:evolution:individuals}) first checks for a trait \texttt{"\_abc"}, then for the general mutation rate \texttt{"\_"} and only lastly returns the default mutation rate.
+
+\begin{lstlisting}[language=lua, caption={Letting the genetic algorithm adapt the mutation rate \emph{per trait}.}, label=lst:metamutationrate, name=lst:metamutationrate]
+x:register("_b", domains.float())
+x:register("_c", domains.float())
+x:register("__c", domains.float())
+\end{lstlisting}
+
+As shown in listing \ref{lst:metamutationrate}, this mechanism can even be applied recursively, although the practical advantages of this seem futile.
+
+
+
+
+

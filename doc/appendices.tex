@@ -35,6 +35,13 @@ end
 
 \section{Module \texttt{shell}: Command line interface}
 
+\chapter{Script \texttt{queens}: A common optimization example}
+\label{chap:app:queens}
+
+\section{The problem's domain}
+
+\section{Performing the search}
+
 \chapter{Test Programs}
 
 \section{Performance measurement for \texttt{oo}'s objects}
@@ -76,9 +83,53 @@ end
 	
 The first argument to the program sets the object type to be used for the test. The second and third arguments define the number of objects with which multiple arrays are filled.\footnote{It is necessary to keep a reference to all the created objects since Lua features automatic garbage collection.} The fourth argument allows to pause the program's execution for a while (\texttt{"wait"}) or indefinitely (\texttt{"inf"}) in order to ease using looking up the used memory manually.
 
-\section{Performance measurement for \texttt{evolution}'s search algorithm}
+\section{Self-adaptation example for \texttt{evolution}}
+\label{sec:app:adaptation}
 
+To provide the data of the example run of evolution strategies presented in table \ref{tab:esrun} in section \ref{sec:evolution:adaptation}, a script was used that repeatedly ages a population by one generation and then prints the best individual to the standard output. Along with the relevant traits of the best individual, it also computes the average traits of the whole population, using the handy \texttt{average} method of \texttt{evolution.population}, which only requires to be given the name of the respective (numerical) solution variable. The script in listing \ref{lst:adaptationperformance} includes the constraints environment as already shown in listings \ref{lst:constraints1}, \ref{lst:sa} and \ref{lst:evolution}.
+
+\begin{lstlisting}[language=lua, caption={Test program for self-adaptation of the mutation rate in the module \texttt{evolution}}, label=lst:adaptationperformance, name=lst:adaptationperformance]
+require "evolution"
+require "domains"
+require "constraints"
+require "serialize"
+
+x = constraints.environment:new(function(left, right)
+	if left.bigdifference > right.bigdifference then
+		return true
+	elseif left.bigdifference < right.bigdifference then
+		return false
+	else
+		return left.highc < right.highc
+	end
+end)
+x:constrain("bigdifference", function() return math.abs(5-b) end)
+x:constrain("highc", function() return c end)
+x:register("b", domains.natural(2, 150))
+x:register("c", domains.float(1, 19))
+
+x:register("_", domains.float())
+x:live()
+
+e = evolution.population:new(x)
+e:seed(10)
+
+
+n = 1
+print(n, b, c, _G["_"], e:average("b"), e:average("c"), e:average("_"))
+for i=0,20 do
+    e:age(1, 1, 0.9)
+    n = n + 1
+    print(n, b, c, _G["_"], e:average("b"), e:average("c"), e:average("_"))
+end
+\end{lstlisting}
+
+
+\section{Comparison of different search algorithms in the script \texttt{queens}}
+\label{sec:app:queensperformance}
 
 \chapter{Documentation}
+
+\chapter{A quick guide to Lua's oddities}
 
 \end{appendices}

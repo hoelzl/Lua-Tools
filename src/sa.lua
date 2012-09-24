@@ -53,6 +53,7 @@ process = oo.object:intend{
             self.states[var] = domain:start()
         end
         self.elite = tt.deepcopy(self.states)
+		self.environment:update(self.elite)
     end),
     
     next = (function (self)
@@ -71,15 +72,16 @@ process = oo.object:intend{
     end),
     
     anneal = oo.public (function (self, n, t)
+        n = n or 1
+		if n <= 0 then return self end
 		self.time = self.time + 1
 		t = t or self.temperature(self.time)
-        n = n or 1
         local energy = self:rank(self.states)[self.energy]
         local new = self:next()
         local newenergy = self:rank(new)[self.energy]
         if self:compare(self.states, new) then
             self.states = new
-        elseif math.exp((energy - newenergy)/t) > math.random() then
+        elseif RNG() < math.exp((energy - newenergy)/t) then
             self.states = new
         end
         self:attemptusurpation(self.states)
