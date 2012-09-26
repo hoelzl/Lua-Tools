@@ -10,8 +10,6 @@ require "serialize"
 require "evolution"
 require "sa"
 
-mode = arg[1] or "both"
-
 topology = {a=1, b=2, c=3, d=4, e=5, f=6, g=7, h=8}
 
 queensdomain = oo.object:intend{
@@ -74,6 +72,8 @@ board:constrain("check", function()
     end
     return checks
 end)
+
+mode = arg[1] or "both"
 
 if mode == "evolution" or mode == "both" then
     print("+---+ evolutionary algorithm +-------------------+")

@@ -1,7 +1,6 @@
 \begin{appendices}
 
-\chapter{Modules \texttt{shell} and \texttt{onsite}: Manual messaging}
-\label{shell}
+\chapter{Manual messaging}
 
 \section{Module \texttt{onsite}: Trivial implementation of the request interface}
 
@@ -20,13 +19,11 @@ function get(query)
 	print("local get of ", serialize.data(query), " returns ", result)
 	return result
 end
-
 function qry(query)
 	local result = "response to "..tostring(query)
 	print("local qry of ", serialize.data(query), " returns ", result)
 	return result
 end
-
 function put(fact)
 	print("local put of ", (serialize.data(fact)))
 	return fact
@@ -34,13 +31,134 @@ end
 \end{lstlisting}
 
 \section{Module \texttt{shell}: Command line interface}
+\label{shell}
 
 \chapter{Script \texttt{queens}: A common optimization example}
 \label{chap:app:queens}
 
 \section{The problem's domain}
+\label{sec:app:queens:domain}
+
+The \emph{8 queens problem} is a widely known optimization problem. The task is to find a constellation of 8 queens on a standard $8 \times 8$ chess board so that none of the queens can check any other.\footnote{Every queen is able to check any other piece thatshe can reach by traveling horizontally, vertically or diagonally. Cf. section 3.2.1 of \cite{RussellNorvig2003} for an illustrated and more detailed explanation.}
+
+From this problem description, it immediately follows that no two queens can be positioned on the same line or row of the chess board. Thus, the search space can be reduced (drastically) by including permutations of queens' columns, which are trivially assigned to the rows. For example, a (not so good) solution candidate may be \texttt{\{a=1, b=2, c=3, d=4, e=5, f=6, e=7, g=8\}}, a possible solution to the queens problem would be \texttt{\{a=6, b=2, c=7, d=1, e=3, f=5, e=3, g=8\}}. Using this representation, it is only necessary for the constraint environment to count how many queens check each other diagonally, as horizontal and vertical checks are ruled out by the data structure already.
+
+This data structure, however, is not included in the \texttt{domains} module and thus, the user has to provide it. This is done in the first half of the script \texttt{queens} (see listing \ref{lst:queens1} below). Before doing so, the script sets the (for this software package) conventional \texttt{RNG} variable to allow the user to hot-plug another random number generator when calling the script and includes relevant modules. The global \texttt{topology} provides a mapping between the column names and an index, allowing later parts of the program to quickly compute the distance between two columns.
+
+\begin{lstlisting}[language=lua, caption={The script \texttt{queens} (part 1)}, label=lst:queens1, name=lst:queens]
+RNG = RNG or math.random
+
+require "oo"
+require "typetools"
+require "domains"
+require "constraints"
+require "serialize"
+require "evolution"
+require "sa"
+
+topology = {a=1, b=2, c=3, d=4, e=5, f=6, g=7, h=8}
+
+queensdomain = oo.object:intend{
+    columns = {"a", "b", "c", "d", "e", "f", "g", "h"},
+    start = oo.public (function (self)
+        local placement = {}
+        local pos = {}
+        for i,c in ipairs(self.columns) do
+            local r = RNG(1, 8)
+            while pos[r] do
+                r = RNG(1, 8)
+            end
+            placement[c] = r
+            pos[r] = true
+        end
+        return placement
+    end),
+    step = oo.public (function (self, origin)
+        local x, y = RNG(1, 8), RNG(1, 8)
+        local placement = typetools.deepcopy(origin)
+        placement[self.columns[x]], placement[self.columns[y]] = placement[self.columns[y]], placement[self.columns[x]]
+        return placement
+    end),
+    combine = oo.public (function (self, a, b)
+        local cut = RNG(1, 7)
+        local placement = {}
+        local pos = {}
+        for i=1,cut do
+            placement[self.columns[i]] = a[self.columns[i]]
+            pos[placement[self.columns[i]]] = true
+        end
+        local bi = 1
+        for i=cut+1,8 do
+            while pos[b[self.columns[bi]]] do
+                bi = bi + 1
+            end
+            placement[self.columns[i]] = b[self.columns[bi]]
+            pos[placement[self.columns[i]]] = true
+        end
+        return placement
+    end)
+}
+\end{lstlisting}
+
+The object \texttt{queensdomain} provides the domains for the queen constellation.\footnote{The way mutation (i.e. the domain's \texttt{step} method) and recombination (i.e. the domain's \texttt{combine} method) are implemented follows both section 2.4.1 of \cite{EibenSmith2007} and section 4.3.4 of \cite{RussellNorvig2003}, which use the same general approach.} At \texttt{start}, it positions a queen onto each column, remembering the rows of previous queens in the local table \texttt{pos}.\footnote{This table saves the position as a key and \texttt{true} as the value, which is a common implementation of a set in Lua.} By checking against the already used positions, the algorithm guarantees that no row is used by two queens.
+
+The \texttt{step} method chooses two random indices and then switches the values (i.e. the queen's row) of the respective columns. Since the search algorithm is probabilistic anyways, it is not a problem if both indices are the same and the new constellation ends up the same as the old one.
+
+The \texttt{combine} method applies \emph{cross-over} recombination: A new solution candidate is generated by assigning the first part of the columns their respective values from the first ``parent'' and filling the remaining columns with the remaining values from the second one. The split between the two parts happens at a randomly generated index. This kind of recombination resembles the way chromosomes are chosen form both parents in biological reproduction.
 
 \section{Performing the search}
+
+The domain discussed in the previous section \ref{sec:app:queens:domain} is used to register the variable \texttt{queens}, which saves a constellation of queens on the chess board. For this problem, there only is one constraint (\texttt{"check"}), which counts the number of queens who check one another.\footnote{By the nature of the problem, this number is always even.} Since it only needs to test for diagonal checks, for a selected queen, it iterates over every other queen and checks if its horizontal distance to the first queen equals the vertical distance. The comparison function passed to the constraint environment then chooses the solution candidate with the lesser number of checks.
+
+\begin{lstlisting}[language=lua, caption={The script \texttt{queens} (part 2, continued from listing \ref{lst:queens1})}, label=lst:queens2, name=lst:queens]
+board = constraints.environment:new(function (left, right)
+    return left.check > right.check
+end)
+board:register("queens", queensdomain)
+board:register("_", domains.just(0.8))
+
+board:constrain("check", function()
+    local checks = 0
+    for q,queen in pairs(queens) do
+        for o,other in pairs(queens) do
+            if not (q == o) then
+                if math.abs(topology[q] - topology[o]) == math.abs(queen - other) then
+                    checks = checks + 1
+                end
+            end
+        end
+    end
+    return checks
+end)
+
+mode = arg[1] or "both"
+
+if mode == "evolution" or mode == "both" then
+    print("+---+ evolutionary algorithm +-------------------+")
+    constellations = evolution.population:new(board)
+    constellations:seed(100)
+    serialize.print(constellations:rank(constellations:best()), constellations:best():gettraits())
+    
+    constellations:age(100, 0.05, 1.0)
+    serialize.print(constellations:rank(constellations:best()), constellations:best():gettraits())
+end
+
+if mode == "sa" or mode == "both" then
+    print("+---+ simulated annealing +----------------------+")
+    constellation = sa.process:new(board)
+    constellation:start("check", function (t) return 1000-t end)
+    serialize.print(constellation:rank(constellation:best()), constellation:best())
+    
+    constellation:anneal(1000)
+    serialize.print(constellation:rank(constellation:best()), constellation:best())
+end\end{lstlisting}
+
+When running the program, it accepts a parameter telling it which search method to use. By default, it executes both a genetic algorithm and a simulated annealing process for testing purposes. See \ref{sec:app:queensperformance} for a comparison of both modules when solving the 8 queens problem.
+
+The configuration of the genetic algorithm follows the parameters given in table 2.1 of \cite{EibenSmith2007} as closely as possible.\footnote{Since the module \texttt{evolution} only supports \emph{tournament selection} (cf. section 3.7.4 of \cite{EibenSmith2007}), both parent selection and survivor selection need to work differently.} It runs for 100 generations with a population of 100.
+
+For simulated annealing, the \texttt{"check"} constraint can be used as an energy constraint, since it is an adequate heuristic of the quality of a candidate solution. The annealing process in 10000 steps features about as many new candidate evaluations as the genetic algorithm above. Because there is a usable heuristic, the simulated annealing search generally is better suited for this problem than the genetic algorithm.
+
 
 \chapter{Test Programs}
 
@@ -72,11 +190,10 @@ for i = 1,base do
 	end
 end
 
-if arg[4] == "wait" then
-	os.execute("sleep 10")
-end
-if arg[4] == "inf" then
+if arg[4] == "wait" then os.execute("sleep 10") end
+if arg[4] == "inf"  then
 	while true do
+		--infinite loop, please kill process manually
 	end
 end
 \end{lstlisting}
@@ -125,11 +242,224 @@ end
 \end{lstlisting}
 
 
-\section{Comparison of different search algorithms in the script \texttt{queens}}
+\section{Comparison of \texttt{queens}' search algorithms}
 \label{sec:app:queensperformance}
+
+To compare the effectiveness of the search methods provided by the modules \texttt{sa} and \texttt{evolution}, the script \texttt{queenstat} uses the data structures defined in the script \texttt{queens} (see appendix \ref{chap:app:queens}) and executes each search algorithm 100 times. The data is collected in tables and printed out in a format comprehensible by most graph plotters.\footnote{The program also outputs a \LaTeX-style table for the purpose of including the data in table \ref{tab:queenstat}.}
+
+\begin{lstlisting}[language=lua, caption={Test program \texttt{queenstat} for collecting statistical data about the search mehotds used in \texttt{queens} (see appendix \ref{chap:app:queens})}, label=lst:queenstat, name=lst:queenstat]
+arg[1] = "none"
+require "queens"
+
+n = 100
+results = {}
+results["sa"] = {}
+results["evolution"] = {}
+avgs = {}
+avgs["sa"] = {}
+avgs["evolution"] = {}
+for i=1,n do
+    results["sa"][i] = {}
+    constellation = sa.process:new(board)
+    constellation:start("check", function (t) return 1000-t end)
+    constellation:anneal(100)
+    for c=1,100 do
+        constellation:anneal(100)
+        results["sa"][i][c] = constellation:rank(constellation:best())["check"]
+    end
+end
+for i=1,n do
+    results["evolution"][i] = {}
+    constellations = evolution.population:new(board)
+    constellations:seed(100)
+    for c=1,100 do
+        constellations:age(1, 0.05, 1.0)
+        results["evolution"][i][c] = constellations:rank(constellations:best())["check"]
+    end
+end
+
+table = "\\# & sa & ev.\\\\\n"
+sagraph = ""
+evgraph = ""
+for c=1,100 do
+    local sum = 0
+    for i=1,n do
+        sum = sum + results["sa"][i][c]
+    end
+    avgs["sa"][c] = sum / n
+    sum = 0
+    for i=1,n do
+        sum = sum + results["evolution"][i][c]
+    end
+    avgs["evolution"][c] = sum / n
+    table = table..tostring(c).." & "..tostring(avgs["sa"][c]).." & "..tostring(avgs["evolution"][c]).."\\\\\n"
+    sagraph = sagraph..tostring(c).." "..tostring(avgs["sa"][c]).."\n"
+    evgraph = evgraph..tostring(c).." "..tostring(avgs["evolution"][c]).."\n"
+end
+
+print(table)
+print()
+print(sagraph)
+print()
+print(evgraph)
+\end{lstlisting}
+
+\begin{table}[h]
+\caption{Statistical data collected by the script of listing \ref{lst:queenstat}}
+\begin{minipage}[t]{0.24\linewidth}
+\begin{tabular}{|r|r|r|}
+\hline
+\# & sa & ev.\\
+\hline
+\hline
+1 & 1.56 & 1.76\\
+2 & 1.12 & 1.76\\
+3 & 0.96 & 1.76\\
+4 & 0.82 & 1.76\\
+5 & 0.64 & 1.76\\
+6 & 0.5 & 1.76\\
+7 & 0.4 & 1.76\\
+8 & 0.34 & 1.74\\
+9 & 0.24 & 1.72\\
+10 & 0.22 & 1.7\\
+11 & 0.22 & 1.68\\
+12 & 0.18 & 1.68\\
+13 & 0.16 & 1.64\\
+14 & 0.14 & 1.62\\
+15 & 0.14 & 1.56\\
+16 & 0.12 & 1.56\\
+17 & 0.12 & 1.54\\
+18 & 0.12 & 1.52\\
+19 & 0.1 & 1.5\\
+20 & 0.08 & 1.46\\
+21 & 0.08 & 1.42\\
+22 & 0.06 & 1.42\\
+23 & 0.06 & 1.42\\
+24 & 0.02 & 1.42\\
+25 & 0.02 & 1.4\\
+\hline
+\end{tabular}
+\end{minipage}
+\begin{minipage}[t]{0.24\linewidth}
+\begin{tabular}{|r|r|r|}
+\hline
+\# & sa & ev.\\
+\hline
+\hline
+26 & 0.02 & 1.4\\
+27 & 0.02 & 1.36\\
+28 & 0.02 & 1.34\\
+29 & 0.02 & 1.32\\
+30 & 0.02 & 1.3\\
+31 & 0.02 & 1.3\\
+32 & 0 & 1.3\\
+33 & 0 & 1.28\\
+34 & 0 & 1.26\\
+35 & 0 & 1.26\\
+36 & 0 & 1.26\\
+37 & 0 & 1.24\\
+38 & 0 & 1.24\\
+39 & 0 & 1.24\\
+40 & 0 & 1.22\\
+41 & 0 & 1.22\\
+42 & 0 & 1.22\\
+43 & 0 & 1.2\\
+44 & 0 & 1.2\\
+45 & 0 & 1.2\\
+46 & 0 & 1.2\\
+47 & 0 & 1.18\\
+48 & 0 & 1.18\\
+49 & 0 & 1.18\\
+50 & 0 & 1.18\\
+\hline
+\end{tabular}
+\end{minipage}
+\begin{minipage}[t]{0.24\linewidth}
+\begin{tabular}{|r|r|r|}
+\hline
+\# & sa & ev.\\
+\hline
+\hline
+51 & 0 & 1.18\\
+52 & 0 & 1.18\\
+53 & 0 & 1.18\\
+54 & 0 & 1.18\\
+55 & 0 & 1.16\\
+56 & 0 & 1.16\\
+57 & 0 & 1.16\\
+58 & 0 & 1.16\\
+59 & 0 & 1.16\\
+60 & 0 & 1.16\\
+61 & 0 & 1.16\\
+62 & 0 & 1.16\\
+63 & 0 & 1.16\\
+64 & 0 & 1.14\\
+65 & 0 & 1.12\\
+66 & 0 & 1.12\\
+67 & 0 & 1.12\\
+68 & 0 & 1.12\\
+69 & 0 & 1.12\\
+70 & 0 & 1.12\\
+71 & 0 & 1.12\\
+72 & 0 & 1.12\\
+73 & 0 & 1.12\\
+74 & 0 & 1.12\\
+75 & 0 & 1.12\\
+\hline
+\end{tabular}
+\end{minipage}
+\begin{minipage}[t]{0.24\linewidth}
+\begin{tabular}{|r|r|r|}
+\hline
+\# & sa & ev.\\
+\hline
+\hline
+76 & 0 & 1.1\\
+77 & 0 & 1.1\\
+78 & 0 & 1.1\\
+79 & 0 & 1.1\\
+80 & 0 & 1.1\\
+81 & 0 & 1.1\\
+82 & 0 & 1.1\\
+83 & 0 & 1.1\\
+84 & 0 & 1.1\\
+85 & 0 & 1.1\\
+86 & 0 & 1.1\\
+87 & 0 & 1.1\\
+88 & 0 & 1.1\\
+89 & 0 & 1.08\\
+90 & 0 & 1.08\\
+91 & 0 & 1.06\\
+92 & 0 & 1.06\\
+93 & 0 & 1.04\\
+94 & 0 & 1.04\\
+95 & 0 & 1.04\\
+96 & 0 & 1.02\\
+97 & 0 & 1.02\\
+98 & 0 & 1.02\\
+99 & 0 & 1\\
+100 & 0 & 1\\
+\hline
+\end{tabular}
+\end{minipage}
+\label{tab:queenstat}
+\end{table}
+
+\begin{figure}[H]
+\includegraphics[scale=0.54]{graphics/comparison}
+\caption{Comparison between \texttt{sa} (below) and \texttt{evolution} (above)}
+\label{fig:queenstat}
+\end{figure}
+
+The table \ref{tab:queenstat} and the figure \ref{fig:queenstat} show the statistical data gathered by one run of \texttt{queenstat} (see listing \ref{lst:queenstat}). The field ``\#'' denotes the current cycle within the search: For simulated annealing (sa), one cycle consists of 100 anneal steps, while for the genetic algorithm (ev.), one cycle equals one new generation. Thus, for both search algorithms, one cycle contains \emph{roughly} the same amount of newly generated solution candidates.\footnote{Also note that the the simulated annealing algorithm already executes 100 annealing steps before the first cycle in order to make up for the genetic algorithm starting with a sample of 100 individuals.} The other fields ( ``sa'' and ``ev.'') show the \emph{average} best rank achieved at the respective cycle in 100 independent executions of the algorithm. Note that the sampling done before the first cycle is already enough to warrant ``quite good'' results, with the average of checks never exceeding 2.
+
+As becomes obvious from analyzing the data above, the simulated annealing algorithm is much more suited for this kind of problem, as it managed to solve it after at most 32 cycles in all of the 100 example runs. Of the genetic algorithm, only about half of the runs reached the optimal result after 100 cycles. However, as discussed in section \ref{sec:evolution:basics}, this was to be expected because the module \texttt{sa} is able to abuse the readily available heuristic while the module \texttt{evolution} is programmed not to in order to achieve a bigger flexibility when facing ill-specified problems, like they often appear in real-life adaptation processes.
 
 \chapter{Documentation}
 
+
+\begin{comment}
 \chapter{A quick guide to Lua's oddities}
+\end{comment}
 
 \end{appendices}

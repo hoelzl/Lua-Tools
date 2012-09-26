@@ -1,4 +1,4 @@
-\chapter{Modules \texttt{shared} and \texttt{distributed}: Message communication}
+\chapter{Message communication}
 
 Both the modules \texttt{shared} and \texttt{distributed} individually provide the technical foundation for message-based communication between different service-components.\footnote{This paper follows the definitions of the ASCENS project (see \cite{ASCENS}), specifically \cite{AscensD41} and \cite{HoelzlWirsing2011}, which are usually the broadest common definition of a given term.} Following \cite{AscensD11}, their communication revolves around three different basic request, called \texttt{qry}, \texttt{get} and \texttt{put}, and their responses. However, \texttt{shared} and \texttt{distributed} only manage the message transfer and and delegate processing them to a module they receive as  a parameter. For testing purposes, the module \texttt{onsite} provides a trivial implementation of \texttt{qry}, \texttt{get} and \texttt{put}.\footnote{See appendix \ref{shell} for example programs using \texttt{shared} and \texttt{distributed} respectively.}
 
