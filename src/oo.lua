@@ -8,10 +8,10 @@
 local pairs = pairs
 local ipairs = ipairs
 local type = type
-local setmetatable = setmetatable
 local unpack = unpack
 local error = error
 local tt = require "typetools"
+local types = require "ootypes"
 module(...)
 local defaultobjecttype = "tab"
 
@@ -47,98 +47,6 @@ local function template(state)
     return tag(state, state._interface, state._dynamics)
 end
 
--- tab object management -----------------------------------------------------------------
-
-local objects = {}
-setmetatable(objects, {__mode = "k"})
-
-local function register(pointer, state)
-    objects[pointer] = state
-end
-
-local function retrieve(pointer)
-    return objects[pointer]
-end
-
--- object type definitions ---------------------------------------------------------------
-
-local function method(state, name)
-    return function(callee, ...)
-        local result = state[name](state, unpack(arg))
-        if result == state then --prevent state from leaking out
-            return callee
-        else
-            return result
-        end
-    end
-end
-
-local function writeerror()
-    error("no write access on object")
-end
-
-local function clone(original)
-    return original:clone()
-end
-
-local lolclass = {
-    __index = function () return nil end,
-    __newindex = writeerror,
-    __copy = clone
-}
-
-
-local tabclass = {
-    __index = function (pointer, key)
-        local state = retrieve(pointer, "state")
-        if state._interface[key] then
-            return method(state, key)
-        else
-            return nil
-        end
-    end,
-    __newindex = writeerror,
-    __copy = clone
-}
-
-local nooclass = {
-    __copy = clone
-}
-
-local types = {
-    lol = {
-        name = "lol",
-        publish = method,
-        represent = function (state)
-            local interface = tt.shallowcopy(state._interface)
-            setmetatable(interface, lolclass)
-            return interface
-        end
-    },
-    tab = {
-        name = "tab",
-        publish = function (state, name)
-            return true
-        end,
-        represent = function (state)
-            local pointer = {}
-            setmetatable(pointer, tabclass)
-            register(pointer, state, state._interface)
-            return pointer
-        end
-    },
-    noo = {
-        name= "noo",
-        publish = function (state, name)
-            return nil
-        end,
-        represent = function (state)
-            setmetatable(state, nooclass)
-            return state
-        end
-    }
-}
-
 -- abstract object construction ----------------------------------------------------------
 
 local function construct(typename, template)
@@ -164,6 +72,7 @@ end
 
 local origin = {
     intend = public (function (self, intension)
+        intension._super = self._representation
         return construct(self._spawntype, tt.update(template(self), intension))
     end),
     new = public (function (self)
@@ -171,6 +80,9 @@ local origin = {
     end),
     clone = public (function (self)
         return self:intend{}
+    end),
+    super = (function (self)
+        return self._super
     end)
 }
 
@@ -208,6 +120,8 @@ function setter(...)
 end
 
 -- general module management -------------------------------------------------------------
+
+object = nil --real declaration happens inside default()
 
 function default(type)
     type = type or defaultobjecttype

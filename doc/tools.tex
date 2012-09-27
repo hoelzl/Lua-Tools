@@ -210,12 +210,17 @@ TODO: update nd.whatif to include an option (_true_ or nil?) to ERADICATE said n
 
  \begin{table}[h]
  \caption{Call patterns of \texttt{nd.whatif}}
- \begin{tabular}{l|p{300pt}}
+ \begin{tabular}{|l|p{300pt}|}
+\hline
 argument  & behavior\\
 \hline
+\hline
 \texttt{false} & don't prevent changes in the respective namespace\\
+\hline
 \texttt{true}, \texttt{\{\}} or \texttt{nil} & prevent changes in the respective namespace \\
+\hline
 \texttt{\{...\}} & apply given bindings before execution and prevent any changes in the original namespace\\
+\hline
  \end{tabular}
  \label{tab:whatif}
  \end{table}
@@ -235,7 +240,7 @@ print((nd.whatif(more, {x=20}, {y=22}))) -- print 42
 nd.whatif(more, false, false)         -- elaborately call more()
 \end{lstlisting}
 
-Building on \texttt{nd.whatif}, one can implement arbitrary combinations of non-deterministic program execution. A premier example of this is the function \texttt{nd.orelse}, which takes an arbitrary number of function as its arguments and executes the first one that does not return \texttt{nil} (and returns that function's result). It does so by trying all given functions using \texttt{nd.whatif} and then incorporating the changes done by the first successful function to its global variables and upvalues into the further program flow.
+Building on \texttt{nd.whatif}, one can implement arbitrary combinations of non-deterministic program execution.\footnote{Or simply protect code from outside interference, as it is done in the module \texttt{distributed} (see section \ref{sec:messaging:distributed}).} A premier example of this is the function \texttt{nd.orelse}, which takes an arbitrary number of function as its arguments and executes the first one that does not return \texttt{nil} (and returns that function's result). It does so by trying all given functions using \texttt{nd.whatif} and then incorporating the changes done by the first successful function to its global variables and upvalues into the further program flow.
 
 
 \begin{lstlisting}[language=lua, caption={Using \texttt{nd.orelse}.}, label=lst:orelse, name=lst:orelse]

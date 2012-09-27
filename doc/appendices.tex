@@ -3,6 +3,7 @@
 \chapter{Manual messaging}
 
 \section{Module \texttt{onsite}: Trivial implementation of the request interface}
+\label{sec:app:onsite}
 
 There is not much to say about the module \texttt{onsite}. It provides a trivial implementation of the request interface needed by the modules \texttt{shared} and \texttt{distributed} while printing out notes on what it does. It is part of this software because without any implementation of this function, \texttt{shared} and \texttt{distributed} could not even be tested.
 
@@ -32,6 +33,116 @@ end
 
 \section{Module \texttt{shell}: Command line interface}
 \label{shell}
+
+The module \texttt{shell} was developed as part of a test application of the messaging functionalities provided by the modules \texttt{shared} and \texttt{distributed} (see chapter \ref{chap:messaging}). It implements a simple command line interface that allows the user to send and answer messages by entering the respective commands into the prompt. These commands include the three basic message types supported by the modules \texttt{shared} in \texttt{distributed} (i.e. \texttt{get}, \texttt{put} and \texttt{qry}) as well as the command \texttt{answer} to trigger the answering process for the earliest pending message.\footnote{For more information on the message protocol, refer to chapter \ref{chap:messaging}.} The shell can be exited by entering the command \texttt{quit}.
+
+However, the module \texttt{shell} is not meant for direct execution by the user, as it cannot initiate the messaging mechanisms itself. It is easy to built a small Lua script to do that, though. The following listings \ref{lst:shell:shared} and \ref{lst:shell:distributed} show simple scripts which initiate a messaging module (\texttt{shared} or \texttt{distributed} respectively) and run the shell to pass on control to the user.
+
+\begin{lstlisting}[language=lua, caption={A script starting \texttt{shared} messaging and running a \texttt{shell}}, label=lst:shell:shared, name=lst:shell:shared]
+remote = require "shared"
+require "onsite"
+require "shell"
+
+remote.init(onsite, "localhost")
+print(shell.help())
+print([[
+  The prefixed number indicates the current coroutine. New ones are produced on the fly
+  when a coroutine blocks. Use the stop command to switch coroutines.]])
+local calls = {}
+local current = 1
+local max = 1
+while true do
+	calls[current] = calls[current] or coroutine.create(function() shell.run("localhost", tostring(current)) end)
+	if coroutine.status(calls[current]) == "dead" then
+		print("An unexpected error occured.")
+		os.exit() --calls should never die anyway
+	end
+	if coroutine.status(calls[current]) == "suspended" then
+		local success, unblock = coroutine.resume(calls[current])
+		if not success then print(unblock); os.exit() end --makes debugging easier
+		if not unblock then max = max + 1 end
+	end
+	current = current < max and current + 1 or 1
+end
+remote.term()
+\end{lstlisting}
+
+\begin{lstlisting}[language=lua, caption={A script starting \texttt{distributed} messaging and running a \texttt{shell}}, label=lst:shell:distributed, name=lst:shell:distributed]
+remote = require "distributed"
+require "onsite"
+require "shell"
+
+remote.init(onsite, arg[1], arg[2])
+print(shell.help())
+shell.run(arg[3] or "localhost")
+remote.term()
+\end{lstlisting}
+
+Listing \ref{lst:shell:shared} is a bit more complex because it contains the coroutine infrastructure: To simulate multiple parallel messaging components within one Lua script, the script works with coroutines. Whenever a message awaits an answer, it passes on the control of the processor to the next coroutine.\footnote{New coroutines are created on the fly as soon as a coroutine blocks.} The current coroutine is indicated by the number at the beginning of the prompt. An example log of using this script could look like this:
+
+\begin{lstlisting}[language=tex, caption={A log from using the script of listing \ref{lst:shell:shared}}, label=lst:shell:sharedlog, name=lst:shell:sharedlog]
+  Type cmds for a list of available commands. Type help <command> for help.
+  The prefixed number indicates the current coroutine. New ones are produced on the fly
+  when a coroutine blocks. Use the stop command to switch coroutines.
+1> get 3
+2> a
+local get of 	return (3)	 returns 	response to 3
+2: true
+2> stop
+1: response to 3
+1> q
+\end{lstlisting}
+
+Note that everything behind a ``\texttt{>}'' is user input. Here, the user first sends a \texttt{get} message with the parameter 3. It blocks the current coroutine 1 so the shell switches to coroutine 2 for the next prompt. The command \texttt{a} is a shortcut for \texttt{answer}, so the current coroutine receives a pending message and generates its response (using the module \texttt{onsite} to execute the local requests, as described in the previous section \ref{sec:app:onsite}). Line 6, starting with ``\texttt{local ...}'', is printed by the module \texttt{onsite}. The \texttt{answer} command returns \texttt{true} and coroutine 2 can prompt again. However, if the user wants to see the answer to the message sent in coroutine 1, it is necessary to switch back to that coroutine. The special command \texttt{stop} (which only has a meaning when working with coroutines) iterates between coroutines by blocking the current one. Thus, after its execution, the stop command passes on the control to coroutine 1, which immediately continues by printing the answer to the message ``\texttt{get 3}''. Finally, the command \texttt{q} is a shortcut for \texttt{quit} and exits the application.
+
+Listing \ref{lst:shell:distributed} looks much simpler, but needs to be run twice\footnote{Since this \emph{is} about network communication, it does not necessarily need to be run on the same machine. However, the scripts presented here are configured to send all messages to ``localhost'', so they are meant to be run on the same computer.} in order two communicate over the network. After initiating the messaging module, it prints the shell's help message and calls \texttt{shell.run} to start the shell. A conversation between two users running this script could look like this:
+
+\begin{lstlisting}[language=tex, caption={A log from using the script of listing \ref{lst:shell:distributed}}, label=lst:shell:distributedlog1, name=lst:shell:disributedlog1]
+  Type cmds for a list of available commands. Type help <command> for help.
+> get 42
+: response to 42
+> q
+\end{lstlisting}
+
+Note, however, that the program blocked execution after entering the command \texttt{get 42}. It only resumed because it received the answer it expected from another instance of the script it was configured to work with, to be exact, the following one:
+
+\begin{lstlisting}[language=tex, caption={Another log from using the script of listing \ref{lst:shell:distributed}}, label=lst:shell:distributedlog2, name=lst:shell:disributedlog2]
+  Type cmds for a list of available commands. Type help <command> for help.
+> a
+local get of 	return (42)	 returns 	response to 42
+: true
+> q
+loca
+\end{lstlisting}
+
+The module \texttt{shell} itself mainly consists of a library of all available commands saved in the table \texttt{commands} and the function of the following listing \ref{lst:shell:run}. Note that each command itself is saved as a table containing two processing steps\footnote{The step called \texttt{"preprocess"} is called on the argument in string form and expected to return any Lua data type, while the step \texttt{"process"} is meant to execute the requested functionality.} as well as a help string.
+
+\begin{lstlisting}[language=lua, caption={The function \texttt{shell.run}}, label=lst:shell:run, name=lst:shell:run]
+function run(stdserver, prefix)
+	prefix = prefix or ""
+	while true do
+		io.write(prefix, "> ")
+		local command = io.read("*line")
+		local recognized = false
+		for name,steps in pairs(commands) do
+			if string.match(command, "^"..name.."$") or string.match(command, "^"..name.."%s") then
+				recognized = true
+				local param = steps.preprocess(string.gsub(command, "^"..name.."%s+(.*)$", "%1"))
+				local result = steps.process(stdserver, param)
+				io.write(prefix, ": ", tostring(result), "\n")
+				--break
+			end
+		end
+		if not recognized then
+			io.write("  unrecognized command\n")
+		end
+	end
+end
+\end{lstlisting}
+
+The function \texttt{shell.run} prints a prompt using Lua's \texttt{io} module and then iterates over all commands\footnote{Obviously, this script only works with a few commands.} and checks for a match. It can then proceed to extract possible parameters and execute the requested functionality to print out the result.
+
+Using this module, one can test the full range of messages supported by the modules \texttt{shared} and \texttt{distributed}.
 
 \chapter{Script \texttt{queens}: A common optimization example}
 \label{chap:app:queens}
@@ -456,6 +567,269 @@ The table \ref{tab:queenstat} and the figure \ref{fig:queenstat} show the statis
 As becomes obvious from analyzing the data above, the simulated annealing algorithm is much more suited for this kind of problem, as it managed to solve it after at most 32 cycles in all of the 100 example runs. Of the genetic algorithm, only about half of the runs reached the optimal result after 100 cycles. However, as discussed in section \ref{sec:evolution:basics}, this was to be expected because the module \texttt{sa} is able to abuse the readily available heuristic while the module \texttt{evolution} is programmed not to in order to achieve a bigger flexibility when facing ill-specified problems, like they often appear in real-life adaptation processes.
 
 \chapter{Documentation}
+
+\section{Tools}
+
+\begin{table}[H]
+\begin{tabular}{|p{5cm}|p{8cm}|}
+\hline
+\multicolumn{2}{|c|}{Module \texttt{serialize}}\\
+\hline
+\hline
+\texttt{command(name, param)} & serializes a call of given \texttt{command} with given \texttt{param}\\
+\hline
+\texttt{data(param)} & serializes given \texttt{param} to a call returning it\\
+\hline
+\texttt{print(...)} & serialize, then call Lua's \texttt{print}\\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\begin{tabular}{|p{5cm}|p{8cm}|}
+\hline
+\multicolumn{2}{|c|}{Module \texttt{typetools}}\\
+\hline
+\hline
+\texttt{deepcopy(thing, cache)} & return deep copy of \texttt{thing} (\texttt{cache} is an accumulator, leave it out when calling from the outside)\\
+\hline
+\texttt{pairs(table)} & replacement of Lua's \texttt{pairs} which respects metamethod \texttt{\_\_pairs}\\
+\hline
+\texttt{proxy(target)} & return shallow copy of \texttt{target} that generates deep copies of its parts on demand, using metatables\\
+\hline
+\texttt{shallowcopy(thing)} & return a shallow copy of \texttt{thing}\\
+\hline
+\texttt{update(table, update)} & return copy of \texttt{table}, but overwrite with values from \texttt{update}\\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\begin{tabular}{|p{5cm}|p{8cm}|}
+\hline
+\multicolumn{2}{|c|}{Module \texttt{nd}}\\
+\hline
+\hline
+\texttt{orelse(...)} & only execute first given function to return \texttt{true}\\
+\hline
+\texttt{whatif(call, globalsetting, localsetting)} & execute \texttt{call} in specified environment\\
+\hline
+\end{tabular}
+\end{table}
+
+
+\section{Message communication}
+
+\begin{table}[H]
+\begin{tabular}{|p{5cm}|p{8cm}|}
+\hline
+\multicolumn{2}{|c|}{Module \texttt{shared}}\\
+\hline
+\hline
+\texttt{answer()} & answer longest pending message \\
+\hline
+\texttt{get(server, query)} & send get request message \\
+\hline
+\texttt{init(onsite, srv, clt)} & start messaging with given \texttt{onsite} commands with given server port and client port for network communication\\
+\hline
+\texttt{put(server, fact)} & send put request message \\
+\hline
+\texttt{qry(server, query)} & send qry request message \\
+\hline
+\texttt{term()} & terminate message communication \\
+\hline
+\texttt{stop()} & block the current coroutine \\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\begin{tabular}{|p{5cm}|p{8cm}|}
+\hline
+\multicolumn{2}{|c|}{Module \texttt{distributed}}\\
+\hline
+\hline
+\texttt{answer()} & answer longest pending message \\
+\hline
+\texttt{get(server, query)} & send get request message \\
+\hline
+\texttt{init(onsite, me, qs)} & start messaging with given \texttt{onsite} commands, under given component \texttt{name} with given shared message queue (\texttt{qs})\\
+\hline
+\texttt{put(server, fact)} & send put request message \\
+\hline
+\texttt{qry(server, query)} & send qry request message \\
+\hline
+\texttt{term()} & terminate message communication \\
+\hline
+\texttt{stop()} & block the current coroutine \\
+\hline
+\end{tabular}
+\end{table}
+
+
+\section{Object Orientation}
+
+\begin{table}[H]
+\begin{tabular}{|p{5cm}|p{8cm}|}
+\hline
+\multicolumn{2}{|c|}{Module \texttt{oo}}\\
+\hline
+\hline
+\texttt{default(type)} & set \texttt{type} of \texttt{oo.origin} \\
+\hline
+\texttt{dynamic(property)} & tag \texttt{property} as dynamic \\
+\hline
+\texttt{instantiate(...)} & generate instantiation method for enumerated properties \\
+\hline
+\texttt{getter(...)} & generate getter method for enumerated properties \\
+\hline
+\texttt{public(method)} & tag \texttt{method} as public \\
+\hline
+\texttt{object} & the prototype of all objects \\
+\hline
+\texttt{object:clone()} & \emph{clone the object} \\
+\hline
+\texttt{object:intend(intension)} & \emph{generate a new object by adding \texttt{intension}}\\
+\hline
+\texttt{object:new()} & \emph{generate a new object by adding nothing} \\
+\hline
+\texttt{setter(...)} & generate setter method for enumerated properties \\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\begin{tabular}{|p{5cm}|p{8cm}|}
+\hline
+\multicolumn{2}{|c|}{Module \texttt{ootypes}}\\
+\hline
+\hline
+\texttt{lol} & the \texttt{"lol"} object type \\
+\hline
+\texttt{noo} & the \texttt{"noo"} object type \\
+\hline
+\texttt{tab} & the \texttt{"tab"} object type \\
+\hline
+\end{tabular}
+\end{table}
+
+
+\section{Probabilistic Search}
+
+\begin{table}[H]
+\begin{tabular}{|p{5cm}|p{8cm}|}
+\hline
+\multicolumn{2}{|c|}{Module \texttt{constraints}}\\
+\hline
+\hline
+\texttt{environment} & the prototype of the constraint environment \\
+\hline
+\texttt{environment:compare(left, right)} & \emph{compare \texttt{left} and \texttt{right} argument using the registered comparison function}\\
+\hline
+\texttt{environment:constrain( name, constraint)} & \emph{register \texttt{constraint} under given \texttt{name}}\\
+\hline
+\texttt{environment:current()} & \emph{retrieve currently best solution found}\\
+\hline
+\texttt{environment:getvars()} & \emph{retrieve the registered variables}\\
+\hline
+\texttt{environment:live(living)} & \emph{set live mode (true/false) to \texttt{living}}\\
+\hline
+\texttt{environment:max(...)} & \emph{call \texttt{test} method with given args}\\
+\hline
+\texttt{environment:new()} & \emph{generate a new environment}\\
+\hline
+\texttt{environment:register( varname, default)} & \emph{register global \texttt{varname} with \texttt{default} metadata}\\
+\hline
+\texttt{environment:test( settings)} & \emph{retrieve best index and best ranks of all given \texttt{settings}}\\
+\hline
+\texttt{environment:try(setting)} & \emph{retrieve ranks of \texttt{setting}}\\
+\hline
+\texttt{environment:update( values)} & \emph{set \texttt{values} as currently best solution}\\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\begin{tabular}{|p{5cm}|p{8cm}|}
+\hline
+\multicolumn{2}{|c|}{Module \texttt{domains}}\\
+\hline
+\hline
+\texttt{float(min, max, deviation)} & generates a floating point number domain between \texttt{min} and \texttt{max} with given \texttt{deviation} \\
+\hline
+\texttt{just(value)} & generates a fixed domain containing just the given \texttt{value} \\
+\hline
+\texttt{natural(min, max, stepsize)} & generates an integer domain between \texttt{min} and \texttt{max} with given \texttt{stepsize} \\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\begin{tabular}{|p{5cm}|p{8cm}|}
+\hline
+\multicolumn{2}{|c|}{Module \texttt{sa}}\\
+\hline
+\hline
+\texttt{process} & the prototype of the simulated annealing process \\
+\hline
+\texttt{anneal(n, t)} & \emph{make \texttt{n} annealing steps (\texttt{t} exists for technical reasons, leave it out)}\\
+\hline
+\texttt{annealto(t)} & \emph{make one annealing step to temperature \texttt{t}}\\
+\hline
+\texttt{process:best()} & \emph{return currently best solution found}\\
+\hline
+\texttt{process:compare(left, right)} & \emph{compare \texttt{left} and \texttt{right} argument using the environment's comparison function}\\
+\hline
+\texttt{process:new(environment, domains)} & \emph{generate a new simulated annealing process based on \texttt{environment} but overwrite with \texttt{domains} (optional)}\\
+\hline
+\texttt{process:rank(state)} & \emph{retrieve rank of given \texttt{state}}\\
+\hline
+\texttt{process:start(energy, temperature)} & \emph{start simulated annealing on the given \texttt{energy} constraint with given \texttt{temperature} function}\\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\begin{tabular}{|p{5cm}|p{8cm}|}
+\hline
+\multicolumn{2}{|c|}{Module \texttt{evolution}}\\
+\hline
+\hline
+\texttt{individual} & the prototype of the individuals of an evolutionary algorithm\\
+\hline
+\texttt{individual:gettraits()} & \emph{return traits}\\
+\hline
+\texttt{individual:mutate()} & \emph{cause individual to undergo mutation}\\
+\hline
+\texttt{individual:new(domains, traits)} & \emph{create new individual based on given \texttt{domains} and set \texttt{traits} (optional)}\\
+\hline
+\texttt{individual:recombine( other)} & \emph{generate new individual by recombining this one with \texttt{other}}\\
+\hline
+\texttt{population} & the prototype of the population of an evolutionary algorithm\\
+\hline
+\texttt{population:age(n, meetrate, birthrate)} & \emph{age population for \texttt{n} generations with given \texttt{meetrate} and \texttt{birthrate}}\\
+\hline
+\texttt{population:all(trait)} & \emph{collect all values of \texttt{trait} occuring in the population in a table}\\
+\hline
+\texttt{population:average(trait)} & \emph{compute the average of numerical \texttt{trait} across the population}\\
+\hline
+\texttt{population:best()} & \emph{return currently best individual found}\\
+\hline
+\texttt{population:compare(left, right)} & \emph{compare \texttt{left} and \texttt{right} individuals using the environment's comparison function}\\
+\hline
+\texttt{population:grow(n)} & \emph{grow by \texttt{n} individuals through reproduction}\\
+\hline
+\texttt{population:new( environment, domains)} & \emph{create new population based on \texttt{environment} but overwrite with \texttt{domains} (optional)}\\
+\hline
+\texttt{population:rank( individual)} & \emph{retrieve rank of given \texttt{individual}}\\
+\hline
+\texttt{population:seed(n)} & \emph{create \texttt{n} new individuals as members}\\
+\hline
+\texttt{population:survive( meetrate, birthrate)} & \emph{apply selection with given \texttt{meetrate} and \texttt{birthrate}} \\
+\hline
+\end{tabular}
+\end{table}
+
 
 
 \begin{comment}

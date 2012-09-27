@@ -1,6 +1,6 @@
 \chapter{Probabilistic search}
 
-The modules in this chapter are technically independent. However, the more complex modules \texttt{evolution} and \texttt{sa} heavily use the interfaces that are provided by the more basic modules \texttt{constraints} and \texttt{domains}, so they are most likely to be used in conjunction, but still open for expansion.\footnote{See appendix \ref{sec:app:queens} for an example program that replaces \texttt{domain} with another piece of software with the same interface.}
+The modules in this chapter are technically independent. However, the more complex modules \texttt{evolution} and \texttt{sa} heavily use the interfaces that are provided by the more basic modules \texttt{constraints} and \texttt{domains}, so they are most likely to be used in conjunction, but still open for expansion.\footnote{See appendix \ref{chap:app:queens} for an example program that replaces \texttt{domain} with another piece of software with the same interface.}
 
 The altogether purpose of this modules is to equip the user with means to execute a probabilistic search on arbitrary constraints. The module \texttt{constraints} allows to evaluate and manage constraints with the module \texttt{domains} providing a few default options for defining the search domain. The module \texttt{evolution} builds on top of that and provides a simple yet flexible implementation of an evolutionary search algorithm. Likewise, the module \texttt{sa} is able to perform simulated annealing to find solutions in suitable search spaces.
 
@@ -162,7 +162,7 @@ While \texttt{naturaldomain}'s \texttt{start} method is trivial, \texttt{step} n
 
 The function \texttt{domains.float} and its respective domain object work quite similarly. However, this domain ranges over floating point numbers instead of integers. By default, these are limited to $[0, 1]$, but the first two parameters passed to \texttt{domains.float} allow to adjust that boundaries. Again, a third argument may be passed to \texttt{domains.float}, which mirrors the ``stepsize'' argument of \texttt{domains.natural}, defining the maximum difference between a value and its successor with respect to the \texttt{step} method. For \texttt{domains.float}, however, small steps are more probable than bigger ones, resulting in a Gaussian-like probability distribution for the ``step distance''. Again, the \texttt{combine} method produces the average of its parameters.
 
-\section{Module \texttt{sa}: Simulated Annealing}
+\section{Module \texttt{sa}: Simulated annealing}
 \label{sec:evolution:sa}
 
 \subsection{Algorithm}
@@ -229,7 +229,7 @@ serialize.print(test3result)
 print(b)
 \end{lstlisting}
 
-In general, the script presented in listing should perform very well at finding the global optimum (at $b=5, c=19$). While useful to show the interface of the software, problems this simple are obviously not a good test case for a search algorithm, though. See appendix \ref{queens} for a more complex example.
+In general, the script presented in listing should perform very well at finding the global optimum (at $b=5, c=19$). While useful to show the interface of the software, problems this simple are obviously not a good test case for a search algorithm, though. See appendix \ref{chap:app:queens} for a more complex example.
 
 \section{Module \texttt{evolution}: Genetic algorithms}
 \label{sec:evolution:evolution}

@@ -86,7 +86,7 @@ commands.help = {
 	process    = function (_,param)
 		return commands[param] and commands[param].help or "no command "..param
 	end,
-	help       = "Print a help for goven command."
+	help       = "Print a help for given command."
 }
 
 -- print a simple help string for the user
