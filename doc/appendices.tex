@@ -140,7 +140,7 @@ function run(stdserver, prefix)
 end
 \end{lstlisting}
 
-The function \texttt{shell.run} prints a prompt using Lua's \texttt{io} module and then iterates over all commands\footnote{Obviously, this script only works with a few commands.} and checks for a match. It can then proceed to extract possible parameters and execute the requested functionality to print out the result.
+The function \texttt{shell.run} prints a prompt using Lua's \texttt{io} module and then iterates over all commands\footnote{Obviously, this script only works when there are only a few available commands.} and checks for a match. It can then proceed to extract possible parameters and execute the requested functionality to print out the result.
 
 Using this module, one can test the full range of messages supported by the modules \texttt{shared} and \texttt{distributed}.
 
@@ -150,7 +150,7 @@ Using this module, one can test the full range of messages supported by the modu
 \section{The problem's domain}
 \label{sec:app:queens:domain}
 
-The \emph{8 queens problem} is a widely known optimization problem. The task is to find a constellation of 8 queens on a standard $8 \times 8$ chess board so that none of the queens can check any other.\footnote{Every queen is able to check any other piece thatshe can reach by traveling horizontally, vertically or diagonally. Cf. section 3.2.1 of \cite{RussellNorvig2003} for an illustrated and more detailed explanation.}
+The \emph{8 queens problem} is a widely known optimization problem. The task is to find a constellation of 8 queens on a standard $8 \times 8$ chess board so that none of the queens can check any other.\footnote{Every queen is able to check any other piece that she can reach by traveling horizontally, vertically or diagonally. Cf. section 3.2.1 of \cite{RussellNorvig2003} for an illustrated and more detailed explanation.}
 
 From this problem description, it immediately follows that no two queens can be positioned on the same line or row of the chess board. Thus, the search space can be reduced (drastically) by including permutations of queens' columns, which are trivially assigned to the rows. For example, a (not so good) solution candidate may be \texttt{\{a=1, b=2, c=3, d=4, e=5, f=6, e=7, g=8\}}, a possible solution to the queens problem would be \texttt{\{a=6, b=2, c=7, d=1, e=3, f=5, e=3, g=8\}}. Using this representation, it is only necessary for the constraint environment to count how many queens check each other diagonally, as horizontal and vertical checks are ruled out by the data structure already.
 
@@ -358,7 +358,7 @@ end
 
 To compare the effectiveness of the search methods provided by the modules \texttt{sa} and \texttt{evolution}, the script \texttt{queenstat} uses the data structures defined in the script \texttt{queens} (see appendix \ref{chap:app:queens}) and executes each search algorithm 100 times. The data is collected in tables and printed out in a format comprehensible by most graph plotters.\footnote{The program also outputs a \LaTeX-style table for the purpose of including the data in table \ref{tab:queenstat}.}
 
-\begin{lstlisting}[language=lua, caption={Test program \texttt{queenstat} for collecting statistical data about the search mehotds used in \texttt{queens} (see appendix \ref{chap:app:queens})}, label=lst:queenstat, name=lst:queenstat]
+\begin{lstlisting}[language=lua, caption={Test program \texttt{queenstat} for collecting statistical data about the search methods used in \texttt{queens} (see appendix \ref{chap:app:queens})}, label=lst:queenstat, name=lst:queenstat]
 arg[1] = "none"
 require "queens"
 
@@ -562,7 +562,7 @@ print(evgraph)
 \label{fig:queenstat}
 \end{figure}
 
-The table \ref{tab:queenstat} and the figure \ref{fig:queenstat} show the statistical data gathered by one run of \texttt{queenstat} (see listing \ref{lst:queenstat}). The field ``\#'' denotes the current cycle within the search: For simulated annealing (sa), one cycle consists of 100 anneal steps, while for the genetic algorithm (ev.), one cycle equals one new generation. Thus, for both search algorithms, one cycle contains \emph{roughly} the same amount of newly generated solution candidates.\footnote{Also note that the the simulated annealing algorithm already executes 100 annealing steps before the first cycle in order to make up for the genetic algorithm starting with a sample of 100 individuals.} The other fields ( ``sa'' and ``ev.'') show the \emph{average} best rank achieved at the respective cycle in 100 independent executions of the algorithm. Note that the sampling done before the first cycle is already enough to warrant ``quite good'' results, with the average of checks never exceeding 2.
+The table \ref{tab:queenstat} and the figure \ref{fig:queenstat} show the statistical data gathered by one run of \texttt{queenstat} (see listing \ref{lst:queenstat}). The field ``\#'' denotes the current cycle within the search: For simulated annealing (sa), one cycle consists of 100 anneal steps, while for the genetic algorithm (ev.), one cycle equals one new generation. Thus, for both search algorithms, one cycle contains \emph{roughly} the same amount of newly generated solution candidates.\footnote{Also note that the the simulated annealing algorithm already executes 100 annealing steps before the first cycle in order to make up for the genetic algorithm starting with a sample of 100 individuals.} The other fields (``sa'' and ``ev.'') show the \emph{average} best rank achieved at the respective cycle in 100 independent executions of the algorithm. Note that the sampling done before the first cycle is already enough to warrant ``quite good'' results, with the average of checks never exceeding 2.
 
 As becomes obvious from analyzing the data above, the simulated annealing algorithm is much more suited for this kind of problem, as it managed to solve it after at most 32 cycles in all of the 100 example runs. Of the genetic algorithm, only about half of the runs reached the optimal result after 100 cycles. However, as discussed in section \ref{sec:evolution:basics}, this was to be expected because the module \texttt{sa} is able to abuse the readily available heuristic while the module \texttt{evolution} is programmed not to in order to achieve a bigger flexibility when facing ill-specified problems, like they often appear in real-life adaptation processes.
 
@@ -714,7 +714,7 @@ As becomes obvious from analyzing the data above, the simulated annealing algori
 \end{table}
 
 
-\section{Probabilistic Search}
+\section{Probabilistic search}
 
 \begin{table}[H]
 \begin{tabular}{|p{5cm}|p{8cm}|}
@@ -772,9 +772,9 @@ As becomes obvious from analyzing the data above, the simulated annealing algori
 \hline
 \texttt{process} & the prototype of the simulated annealing process \\
 \hline
-\texttt{anneal(n, t)} & \emph{make \texttt{n} annealing steps (\texttt{t} exists for technical reasons, leave it out)}\\
+\texttt{process:anneal(n, t)} & \emph{make \texttt{n} annealing steps (\texttt{t} exists for technical reasons, leave it out)}\\
 \hline
-\texttt{annealto(t)} & \emph{make one annealing step to temperature \texttt{t}}\\
+\texttt{process:annealto(t)} & \emph{make one annealing step to temperature \texttt{t}}\\
 \hline
 \texttt{process:best()} & \emph{return currently best solution found}\\
 \hline

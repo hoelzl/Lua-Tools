@@ -39,9 +39,18 @@ local function serialize(expr, saved, prologue, index)
 	end
 end
 
-function command(name, param)
-	local object, library, prologue = serialize(param)
-	return prologue.."return "..name.."("..object..")"
+function command(name, ...)
+    local call = ""
+    local library, prologue, index
+    for i,param in pairs(arg) do
+        object, library, prologue, index = serialize(param, library, prologue, index)
+        if i == 1 then
+            call = call..object
+        else
+            call = call..", "..object
+        end
+    end
+	return prologue.."return "..name.."("..call..")"
 end
 
 function data(param)

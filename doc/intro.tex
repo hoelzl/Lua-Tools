@@ -1,2 +1,30 @@
 \chapter*{Introduction}
 \addcontentsline{toc}{chapter}{Introduction}
+
+The \emph{Pseudo-Operational Ensemble Modelling language} (POEM) is developed by the ASCENS project\footnote{See \cite{ASCENS} for more on the project.} as a tool to model the behavior of \emph{software ensembles}. As defined in \cite{AscensTR7}, ``[e]nsembles are software-intensive systems with massive numbers of nodes or complex interactions between nodes, operating in open and non-deterministic environments in which they have to interact with humans or other software-intensive systems in elaborate ways.'' In order to accurately describe ensembles, POEM chooses a two-layered approach by using ``an action programming language based on classical first-order logic as the foundation, and on top of this basic layer support for probabilistic reasoning and soft-constraint-based optimization.''\footnote{Cf. \cite{AscensTR7} (which is cited here) or \cite{AscensJD21} for more on the POEM language.} Thus, the POEM language provides a very fancy set of high-level tools to model the behavior of a given ensemble.
+
+However, one of the use case scenarios, which the ASCENS project seeks to apply the POEM language to, consists of a software ensemble made up by a group of small robots, which need to coordinate their actions to achieve a common goal and, unluckily, whose hardware specifications are rather limited. To provide these robots with an adequately resource-efficient version of the POEM language interpreter in the future, it is necessary, first of all, to implement the basic functionalities the POEM language builds upon in a language suitable to run on embedded systems (like our robots), which shall be the goal of this paper.
+
+All programs presented in this paper are written in Lua, which is an open-source scripting language, whose flexibility and dynamic natures allows for fast coding but, more importantly, whose compatibility with ANSI C and small interpreter footprint makes it a premier choice for embedded systems.\footnote{When in-depth knowledge of Lua mechanisms is required to understand a presented piece of software, it will be explained in the respective section. However, a basic understanding of Lua's design principles is probably necessary to fully understand all listings in this paper. Cf.  \cite{Ierusalimschy2006} for an extensive and well-written introduction to Lua.} As Lua's standard library is relatively small, too, one of the downsides of using Lua is the necessity to include an implementation of relatively basic features to be used in the project.
+
+Especially chapter \ref{chap:tools} describes three useful modules, which provide a way to serialize Lua data (\ref{sec:tools:serialize}), perform some slightly advanced operations on Lua's ubiquitous table data type (\ref{sec:tools:typetools}) and execute a function in a protected environment, thus enabling the straight-forward simulation of non-deterministic behavior, which is an integral part of the POEM language, in a Lua program (\ref{sec:tools:nd}).
+
+The modules presented in chapter \ref{chap:messaging} provide messaging capabilities to the programmer, using the same interface to send messages to a shared message queue, possibly inside a shared memory segment (\ref{sec:messaging:shared}), or across the network by building a TCP connection (\ref{sec:messaging:distributed}). Both of these forms of message transmission can occur between the component of an ensemble.
+
+Chapter \ref{chap:oo} mainly describes the module \texttt{oo}, which offers a flexible yet efficient framework for object-oriented programming. It unifies different approaches at implementing objects in Lua to a single interface (\ref{sec:oo:usage}), while enabling the user to dynamically switch between multiple of these approaches that are provided within the module (\ref{sec:oo:implementation}).
+
+In chapter \ref{chap:evolution}, this OO framework is used to implement an abstract environment object to collect all data needed for the specification of a constraint problem (\ref{sec:evolution:constraints}) and providing a few (numeric) search domains (\ref{sec:evolution:domains}). To solve a constraint satisfaction or optimization problem defined in such a manner, this paper presents and discusses both a constraint solver using \emph{simulated annealing} (\ref{sec:evolution:sa}) and one using \emph{evolutionary algorithms} (\ref{sec:evolution:evolution}). Complementing each other in regard to suitable problems, these modules provide a viable realization of the soft-constraint solver to come with the POEM language.
+
+This paper's appendices include a few example scripts in order to showcase how to use the described modules for a productive software (A, B, C), as well as an overview over all functions provided by the modules introduced in the previous paragraphs (D).
+
+Note that since the only dependencies between the chapters come from latter modules using usually trivially explained functionality\footnote{The main features of earlier modules used in later ones are (1) data serilaization, (2) simple table operations not included in Lua's standard library, (3) non-deterministic branch and (4) object-oriented programming. The features (1-3) are covered in chapter \ref{chap:tools}, feature (4) is the main topic of chapter \ref{chap:oo}.} provided by previous modules, an experienced programmer should be able to read each chapter individually. After all, the software this paper is most aptly described as a set of tools aiding the implementation and usage of a POEM-like language.
+
+\thispagestyle{plain}
+
+
+
+
+
+
+
+

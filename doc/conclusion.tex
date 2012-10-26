@@ -1,0 +1,11 @@
+\chapter*{Conclusion}
+\addcontentsline{toc}{chapter}{Conclusion}
+
+The 11 Lua modules presented in this paper each offer functionality that is certainly helpful on its own, however, they are meant to work together to provide the programmer with a rich set of tools in order to realize high-level programming paradigms on a Lua platform, such as non-deterministic algorithms, network-transparent messaging, object orientation and soft constraint solving. These are the key ingredients standard Lua is lacking in order to serve as a platform for a POEM interpreter. The modules presented here may both allow to adapt programming patterns developed in or for POEM more straight-forward into Lua code and ease the future implementation of a compatible POEM interpreter on a Lua platform (like it can be used on swarm robots).
+
+The following appendices are meant to provide more practical material to any developer using this software: Appendix A augments the modules described in chapter~\ref{chap:messaging} by a dummy module for message interpretation and the module \texttt{shell}, which provides a command-line interface for sending and answering messages. Appendix B builds upon the constraint solver and search algorithms of chapter \ref{chap:evolution} and applies them to the \emph{eight queens problem}. Although their suitability for the problem differs, the effectiveness of both search algorithms applied to the problem is examined in appendix C, alongside other test programs that have been used for performance measurements throughout this paper. Appendix D contains a comprehensive summary of all functions and methods exported by all 11 modules examined in this paper and is meant to serve as a quick reference.
+
+From the example applications presented in the appendices alone, it becomes obvious that the tools this paper introduced cover a wide range of computing tasks, which enables them to work as a platform for more complex software. Oftentimes, the presented tools are able (but never required) to invade ``language territory'' by, for example, extending Lua with a object framework or integrated constraint solver in order to make using these advanced tools an effortless experience. Thus, they already are a first step to creating a higher-level modeling language for limited systems based on Lua.
+
+\newpage
+\thispagestyle{plain}
